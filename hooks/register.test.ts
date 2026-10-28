@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, finishedTask, pickAnimation, taskAnimation } from './register'
+import { describeWaiting, finishedTasks, pickAnimation, taskAnimation } from './register'
 
 const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test' }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src' }
@@ -30,8 +30,10 @@ test('opens, takes idle breaks and falls asleep over time', () => {
   expect(pickAnimation([shell], 4 * 60_000, 'wave')).toBe('sleeping')
 })
 
-test('spots a finished task in a notification', () => {
-  const done = '<task-notification><tool-use-id>toolu_1</tool-use-id><status>completed</status></task-notification>'
-  expect(finishedTask(done)).toBe('toolu_1')
-  expect(finishedTask('<tool-use-id>toolu_2</tool-use-id><status>running</status>')).toBe(null)
+test('spots every finished task in a turn', () => {
+  const note = (id: string, status: string) =>
+    `<task-notification><tool-use-id>${id}</tool-use-id><status>${status}</status></task-notification>`
+  expect(finishedTasks(note('toolu_1', 'completed'))).toEqual(['toolu_1'])
+  expect(finishedTasks(note('toolu_1', 'completed') + note('toolu_2', 'failed'))).toEqual(['toolu_1', 'toolu_2'])
+  expect(finishedTasks(note('toolu_3', 'running'))).toEqual([])
 })

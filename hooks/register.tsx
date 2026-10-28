@@ -52,19 +52,37 @@ const short = (text: string) => {
   return line.length > 60 ? `${line.slice(0, 57)}...` : line
 }
 
-// The tool_use id of a task whose notification says it ended, else null.
-export function finishedTask(text: string): string | null {
-  const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(text)?.[1]
-  const status = /<status>([^<]+)<\/status>/.exec(text)?.[1]
-  return id && status && /completed|failed|killed|stopped/.test(status) ? id : null
+// The tool_use ids of the tasks whose notifications in `text` say they ended.
+// One turn can carry several notifications, so each one is read on its own.
+export function finishedTasks(text: string): string[] {
+  const blocks = text.match(/<task-notification>[\s\S]*?<\/task-notification>/g) ?? [text]
+  const done: string[] = []
+  for (const block of blocks) {
+    const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(block)?.[1]
+    const status = /<status>([^<]+)<\/status>/.exec(block)?.[1]
+    if (id && status && ENDED.test(status)) done.push(id)
+  }
+  return done
 }
 
-// Drops a task whose finished notice is in `text`; true when one was dropped.
+const ENDED = /completed|failed|killed|stopped/
+
+// Drops the tasks whose finished notices are in `text`; true when any was dropped.
 async function finish($: EngineInterface, text: string): Promise<boolean> {
-  const done = finishedTask(text)
-  if (!done) return false
-  await update($, waiting, items => items.filter(i => i.id !== done)).catch(() => {})
+  const done = finishedTasks(text)
+  if (done.length === 0) return false
+  await update($, waiting, items => items.filter(i => !done.includes(i.id))).catch(() => {})
   return true
+}
+
+// Drops background agents the session no longer lists as working. This catches
+// an agent whose end never came as a notification Clawd could read.
+async function sweepAgents($: EngineInterface, items: readonly WaitItem[]): Promise<void> {
+  if (!items.some(i => i.agentId)) return
+  const agents = await $.agent.list()
+  const gone = new Set(agents.filter(a => ENDED.test(a.status)).map(a => a.id))
+  const stale = (i: WaitItem) => !!i.agentId && gone.has(i.agentId)
+  if (items.some(stale)) await update($, waiting, all => all.filter(i => !stale(i)))
 }
 
 export const register: Register = on => {
@@ -79,8 +97,9 @@ export const register: Register = on => {
     let item: WaitItem | null = null
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && e.run_in_background) {
       item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}` }
-    } else if (e.tool === 'Agent' && e.run_in_background !== false) {
-      item = { id: e.tool_use_id, kind: 'subagent', label: short(e.description), hint: `${e.description} ${e.subagent_type ?? ''}` }
+    } else if (e.tool === 'Agent' && 'result' in result && result.result?.status === 'async_launched') {
+      const { agentId } = result.result
+      item = { id: e.tool_use_id, kind: 'subagent', label: short(e.description), hint: `${e.description} ${e.subagent_type ?? ''}`, agentId }
     } else if (e.tool === 'Monitor') {
       item = { id: e.tool_use_id, kind: 'monitor', label: short(e.description), hint: e.description }
     }
@@ -99,6 +118,7 @@ export const register: Register = on => {
     await update($, scene, () => null)
 
     $.clock.every(1000, async () => {
+      await sweepAgents($, await read($, waiting)).catch(() => {})
       const current = await read($, scene)
       const items = await read($, waiting)
       if (!current || items.length === 0) return
@@ -126,7 +146,12 @@ export const register: Register = on => {
   // Claude went quiet. If work is still running, a new quiet stretch begins.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId) return result
+    if (e.agentId) {
+      // A background agent's own loop ended: it is no longer work to wait on.
+      const ended = e.agentId
+      await update($, waiting, items => items.filter(i => i.agentId !== ended)).catch(() => {})
+      return result
+    }
 
     const items = await read($, waiting).catch(() => [] as WaitItem[])
     if (items.length > 0) {
