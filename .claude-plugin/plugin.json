@@ -1,0 +1,9 @@
+{
+  "name": "pixel-buddy",
+  "version": "0.3.0",
+  "description": "An animated pixel creature above the prompt that shows what Claude is waiting on while background work runs",
+  "author": { "name": "furkangocuk" },
+  "license": "MIT",
+  "keywords": ["ui", "mascot", "background-tasks"],
+  "types": "./types/index.d.ts"
+}
