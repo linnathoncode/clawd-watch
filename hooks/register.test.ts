@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, finishedTasks, inPhase, nextFrame, pickAnimation, taskAnimation } from './register'
+import { agentIdOf, describeWaiting, finishedTasks, inPhase, nextFrame, pickAnimation, taskAnimation } from './register'
 import { SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test' }
@@ -56,9 +56,18 @@ test('spots every finished task in a turn', () => {
   expect(finishedTasks(note('toolu_3', 'running'))).toEqual([])
   const interim = note('toolu_4', 'completed').replace('</status>', '</status><summary>Agent "x" is waiting on its own background work</summary>')
   expect(finishedTasks(interim)).toEqual([])
+  const agentEnd = '<task-notification><task-id>a9</task-id><status>completed</status><summary>Agent "x" finished</summary></task-notification>'
+  expect(finishedTasks(agentEnd)).toEqual(['a9'])
 })
 
 test('the laptop glow picks up where the clock has it', () => {
   for (const f of ['writing', 'writing~', 'stretch', 'stretch~']) expect(inPhase(SPRITES[f] ?? '', 2300)).toContain('animation-delay:-100ms')
   expect(inPhase(SPRITES.listening ?? '', 2300)).toBe(SPRITES.listening ?? '')
+})
+
+test('reads the agent id from a launch, whatever else it carries', () => {
+  expect(agentIdOf({ agentId: 'a1' })).toBe('a1')
+  expect(agentIdOf({ status: 'async_launched', agentId: 'a2', description: 'x' })).toBe('a2')
+  expect(agentIdOf('Async agent launched')).toBe(undefined)
+  expect(agentIdOf(undefined)).toBe(undefined)
 })

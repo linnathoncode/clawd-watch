@@ -85,7 +85,7 @@ const short = (text: string) => {
   return line.length > 60 ? `${line.slice(0, 57)}...` : line
 }
 
-// The tool_use ids of the tasks whose notifications in `text` say they ended.
+// The ids (tool_use ids, and task ids) of the tasks whose notifications in `text` say they ended.
 // One turn can carry several notifications, so each one is read on its own.
 export function finishedTasks(text: string): string[] {
   const blocks = text.match(/<task-notification>[\s\S]*?<\/task-notification>/g) ?? [text]
@@ -94,9 +94,14 @@ export function finishedTasks(text: string): string[] {
     // An agent that stops while its own background work runs sends a "completed"
     // notice that is not its end; its real end comes as another notice later.
     if (/background work of its own still running|is waiting on its own background work/.test(block)) continue
-    const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(block)?.[1]
     const status = /<status>([^<]+)<\/status>/.exec(block)?.[1]
-    if (id && status && ENDED.test(status)) done.push(id)
+    if (!status || !ENDED.test(status)) continue
+    // A notice names the call that started the task, the task itself, or both.
+    // For an agent, the task id is its agent id.
+    for (const tag of ['tool-use-id', 'task-id']) {
+      const id = new RegExp(`<${tag}>([^<]+)</${tag}>`).exec(block)?.[1]
+      if (id) done.push(id)
+    }
   }
   return done
 }
@@ -107,8 +112,13 @@ const ENDED = /completed|failed|killed|stopped/
 async function finish($: EngineInterface, text: string): Promise<boolean> {
   const done = finishedTasks(text)
   if (done.length === 0) return false
-  await update($, waiting, items => items.filter(i => !done.includes(i.id))).catch(() => {})
+  await update($, waiting, items => items.filter(i => !done.includes(i.id) && !(i.agentId && done.includes(i.agentId)))).catch(() => {})
   return true
+}
+
+export function agentIdOf(result: unknown): string | undefined {
+  const id = (result as { agentId?: unknown } | null | undefined)?.agentId
+  return typeof id === 'string' ? id : undefined
 }
 
 // Drops background agents the session no longer lists as working. This catches
@@ -133,8 +143,9 @@ export const register: Register = on => {
     let item: WaitItem | null = null
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && e.run_in_background) {
       item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}` }
-    } else if (e.tool === 'Agent' && 'result' in result && result.result?.status === 'async_launched') {
-      const { agentId } = result.result
+    } else if (e.tool === 'Agent' && e.run_in_background !== false) {
+      // The launch answers with the agent's id, which the agent list keys it by.
+      const agentId = agentIdOf(result.result)
       item = { id: e.tool_use_id, kind: 'subagent', label: short(e.description), hint: `${e.description} ${e.subagent_type ?? ''}`, agentId }
     } else if (e.tool === 'Monitor') {
       item = { id: e.tool_use_id, kind: 'monitor', label: short(e.description), hint: e.description }
