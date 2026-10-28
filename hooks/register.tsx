@@ -184,6 +184,8 @@ const PERSON: readonly string[] = ['composer', 'bridge', 'sdk']
 export const register: Register = on => {
   // Set when a task ends, so the next quiet moment opens with a hop instead of a wave.
   let taskEnded = false
+  // Set while Claude works: Clawd is hidden then, so it holds its frame until Claude is quiet.
+  let busy = false
 
   // Track background work ourselves: a launch adds it, its completion notice removes it.
   on('tool.call', async ($, e, next) => {
@@ -234,7 +236,7 @@ export const register: Register = on => {
       const items = await read($, waiting)
       // Nothing left to wait on: the quiet stretch is over.
       if (current && items.length === 0) await update($, scene, () => null)
-      if (!current || items.length === 0) return
+      if (!current || items.length === 0 || busy) return
       const target = pickAnimation(items, (await $.clock.now()) - current.since, current.opener)
       const now = await read($, shown)
       const frame = nextFrame(now, target)
@@ -258,7 +260,9 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
-    if (!e.agentId && (await finish($, e.text))) taskEnded = true
+    if (e.agentId) return next(e)
+    busy = true
+    if (await finish($, e.text)) taskEnded = true
     return next(e)
   })
 
@@ -282,6 +286,7 @@ export const register: Register = on => {
     const items = await read($, waiting).catch(() => [] as WaitItem[])
     if (items.length > 0) await quiet($, taskEnded).catch(() => {})
     taskEnded = false
+    busy = false
     return result
   })
 
