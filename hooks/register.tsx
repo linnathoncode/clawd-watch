@@ -14,8 +14,15 @@ const CLAY = '#D97757'
 // Timings for the animation Clawd shows while Claude waits, in milliseconds.
 const OPENER_MS = 2500 // wave (or hop, if a task just finished) when the wait begins
 const SLEEP_AFTER_MS = 3 * 60 * 1000 // a long wait sends Clawd to sleep
-const BREAK_EVERY_MS = 30 * 1000 // now and then, a short idle break
-const BREAK_FOR_MS = 4000 // one cycle of idle or stretch
+const BREAK_EVERY_MS = 30 * 1000 // now and then, a short break
+
+// The break each task takes, and how long it lasts: the exit into it plus one whole
+// cycle of the break animation. Listening is already at rest, so it takes none.
+const BREAKS: Partial<Record<AnimId, { anim: AnimId; ms: number }>> = {
+  writing: { anim: 'stretch', ms: 4000 }, // the laptop stays, so there is no exit
+  thinking: { anim: 'idle', ms: 8000 },
+  searching: { anim: 'idle', ms: 8000 },
+}
 
 // The laptop screen's flicker loop, in ms (the sheet's glow). Each frame at the laptop
 // starts the flicker where the clock has it, so a switch keeps the light steady.
@@ -46,8 +53,9 @@ export function pickAnimation(items: readonly WaitItem[], elapsed: number, opene
   if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
   // The newest task leads: it is the one Claude most likely stopped to wait for.
   const task = taskAnimation(items[items.length - 1])
-  // A break from writing is a stretch at the laptop; any other break is plain idle.
-  if (elapsed >= BREAK_EVERY_MS && elapsed % BREAK_EVERY_MS < BREAK_FOR_MS) return task === 'writing' ? 'stretch' : 'idle'
+  // A break from writing is a stretch at the laptop; thinking and searching scratch their head.
+  const pause = BREAKS[task]
+  if (pause && elapsed >= BREAK_EVERY_MS && elapsed % BREAK_EVERY_MS < pause.ms) return pause.anim
   return task
 }
 
@@ -83,6 +91,9 @@ export function finishedTasks(text: string): string[] {
   const blocks = text.match(/<task-notification>[\s\S]*?<\/task-notification>/g) ?? [text]
   const done: string[] = []
   for (const block of blocks) {
+    // An agent that stops while its own background work runs sends a "completed"
+    // notice that is not its end; its real end comes as another notice later.
+    if (/background work of its own still running|is waiting on its own background work/.test(block)) continue
     const id = /<tool-use-id>([^<]+)<\/tool-use-id>/.exec(block)?.[1]
     const status = /<status>([^<]+)<\/status>/.exec(block)?.[1]
     if (id && status && ENDED.test(status)) done.push(id)
@@ -173,12 +184,9 @@ export const register: Register = on => {
   // Claude went quiet. If work is still running, a new quiet stretch begins.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId) {
-      // A background agent's own loop ended: it is no longer work to wait on.
-      const ended = e.agentId
-      await update($, waiting, items => items.filter(i => i.agentId !== ended)).catch(() => {})
-      return result
-    }
+    // A background agent's turn ending is not its end: it may be waiting on work of
+    // its own. The clock's sweep of the agent list drops it once it is really done.
+    if (e.agentId) return result
 
     const items = await read($, waiting).catch(() => [] as WaitItem[])
     if (items.length > 0) {

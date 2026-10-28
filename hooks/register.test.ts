@@ -25,15 +25,17 @@ test('opens, takes idle breaks and falls asleep over time', () => {
   expect(pickAnimation([shell], 0, 'wave')).toBe('wave')
   expect(pickAnimation([shell], 1000, 'hop')).toBe('hop')
   expect(pickAnimation([shell], 10_000, 'wave')).toBe('listening')
-  expect(pickAnimation([shell], 31_000, 'wave')).toBe('idle')
-  expect(pickAnimation([shell], 36_000, 'wave')).toBe('listening')
+  expect(pickAnimation([shell], 31_000, 'wave')).toBe('listening')
+  expect(pickAnimation([agentThink], 31_000, 'wave')).toBe('idle')
+  expect(pickAnimation([agentThink], 37_000, 'wave')).toBe('idle')
+  expect(pickAnimation([agentThink], 39_000, 'wave')).toBe('thinking')
   expect(pickAnimation([shell, agentWrite], 10_000, 'wave')).toBe('writing')
   expect(pickAnimation([shell], 4 * 60_000, 'wave')).toBe('sleeping')
 })
 
 test('a break from writing is a stretch at the laptop', () => {
   expect(pickAnimation([agentWrite], 31_000, 'wave')).toBe('stretch')
-  expect(pickAnimation([agentThink], 31_000, 'wave')).toBe('idle')
+  expect(pickAnimation([agentWrite], 35_000, 'wave')).toBe('writing')
 })
 
 test('every switch passes through an exit, except between shared props', () => {
@@ -52,6 +54,8 @@ test('spots every finished task in a turn', () => {
   expect(finishedTasks(note('toolu_1', 'completed'))).toEqual(['toolu_1'])
   expect(finishedTasks(note('toolu_1', 'completed') + note('toolu_2', 'failed'))).toEqual(['toolu_1', 'toolu_2'])
   expect(finishedTasks(note('toolu_3', 'running'))).toEqual([])
+  const interim = note('toolu_4', 'completed').replace('</status>', '</status><summary>Agent "x" is waiting on its own background work</summary>')
+  expect(finishedTasks(interim)).toEqual([])
 })
 
 test('the laptop glow picks up where the clock has it', () => {

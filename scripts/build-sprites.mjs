@@ -55,10 +55,9 @@ const ENTER = id => `$ .enter{transform-origin:50% 100%;animation:${id}-in .4s e
   @keyframes ${id}-in{0%{transform:scale(1.08,.88)}45%{transform:scale(.96,1.05)}100%{transform:none}}
   @keyframes ${id}-pin{0%{opacity:0;transform:scale(.5)}100%{opacity:1;transform:none}}`
 
+// Clawd stands still while the props leave: no squash, so an exit never reads as a new start.
 const LEAVE = (id, to) => `$ .prop{transform-origin:50% 50%;animation:${id}-lv .5s ease-in both}
-  $ .squash{animation:${id}-st .6s ease-out both}
-  @keyframes ${id}-lv{0%{opacity:1;transform:none}100%{opacity:0;transform:${to}}}
-  @keyframes ${id}-st{0%{transform:scale(1.05,.94)}55%{transform:scale(.98,1.03)}100%{transform:none}}`
+  @keyframes ${id}-lv{0%{opacity:1;transform:none}100%{opacity:0;transform:${to}}}`
 
 const wrap = (parts, cls) =>
   Object.fromEntries(Object.entries(parts).filter(([, v]) => v).map(([k, v]) => [k, `<g class="${cls}">${v}</g>`]))

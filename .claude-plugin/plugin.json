@@ -1,6 +1,6 @@
 {
   "name": "clawd-watch",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Clawd, an animated pixel creature, sits above the prompt and shows what Claude is waiting on while background work runs",
   "author": { "name": "furkangocuk" },
   "license": "MIT",
