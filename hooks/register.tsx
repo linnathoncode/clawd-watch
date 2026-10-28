@@ -14,6 +14,7 @@ const CLAY = '#D97757'
 // Timings for the animation Clawd shows while Claude waits, in milliseconds.
 const OPENER_MS = 2500 // wave (or hop, if a task just finished) when the wait begins
 const SLEEP_AFTER_MS = 3 * 60 * 1000 // a long wait sends Clawd to sleep
+const FORGET_AFTER_MS = 2 * 60 * 60 * 1000 // a task this old lost its end notice: stop waiting on it
 const BREAK_EVERY_MS = 30 * 1000 // now and then, a short break
 
 // The break each task takes, and how long it lasts: the exit into it plus one whole
@@ -108,47 +109,81 @@ export function finishedTasks(text: string): string[] {
 
 const ENDED = /completed|failed|killed|stopped/
 
+// True when `item` is the task one of `ids` names: by its tool call, task id or agent id.
+export function names(item: WaitItem, ids: readonly string[]): boolean {
+  return [item.id, item.taskId, item.agentId].some(id => id !== undefined && ids.includes(id))
+}
+
 // Drops the tasks whose finished notices are in `text`; true when any was dropped.
 async function finish($: EngineInterface, text: string): Promise<boolean> {
   const done = finishedTasks(text)
   if (done.length === 0) return false
-  await update($, waiting, items => items.filter(i => !done.includes(i.id) && !(i.agentId && done.includes(i.agentId)))).catch(() => {})
+  const before = await read($, waiting)
+  if (!before.some(i => names(i, done))) return false
+  await update($, waiting, items => items.filter(i => !names(i, done))).catch(() => {})
   return true
 }
 
-export function agentIdOf(result: unknown): string | undefined {
-  const id = (result as { agentId?: unknown } | null | undefined)?.agentId
-  return typeof id === 'string' ? id : undefined
+// A string field of a tool's result, whatever else the result carries.
+export function field(result: unknown, key: string): string | undefined {
+  const value = (result as Record<string, unknown> | null | undefined)?.[key]
+  return typeof value === 'string' ? value : undefined
 }
 
-// Drops background agents the session no longer lists as working. This catches
-// an agent whose end never came as a notification Clawd could read.
-async function sweepAgents($: EngineInterface, items: readonly WaitItem[]): Promise<void> {
-  if (!items.some(i => i.agentId)) return
-  const agents = await $.agent.list()
-  const gone = new Set(agents.filter(a => ENDED.test(a.status)).map(a => a.id))
-  const stale = (i: WaitItem) => !!i.agentId && gone.has(i.agentId)
-  if (items.some(stale)) await update($, waiting, all => all.filter(i => !stale(i)))
+// Drops what can no longer be running: an agent the session lists as failed or killed
+// ("completed" is left to its end notice, since an agent paused on work of its own is
+// listed that way too), and anything so old its end notice must have been lost.
+async function sweep($: EngineInterface, now: number): Promise<void> {
+  const items = await read($, waiting)
+  if (items.length === 0) return
+  const dead = items.some(i => i.agentId) ? (await $.agent.list()).filter(a => /failed|killed/.test(a.status)).map(a => a.id) : []
+  const gone = (i: WaitItem) => now - i.since > FORGET_AFTER_MS || (!!i.agentId && dead.includes(i.agentId))
+  if (items.some(gone)) await update($, waiting, all => all.filter(i => !gone(i)))
+}
+
+// Claude went quiet with work running. A quiet stretch already under way carries on, so
+// a wake-up does not replay the opener or restart the break and sleep timers; a task
+// ending inside one gives a hop, then Clawd moves on to what is left.
+async function quiet($: EngineInterface, taskEnded: boolean): Promise<void> {
+  const current = await read($, scene)
+  if (current && !taskEnded) return
+  const since = await $.clock.now()
+  const opener: Scene['opener'] = taskEnded ? 'hop' : 'wave'
+  await update($, scene, () => ({ since, opener }))
+  // A fresh stretch shows its opener at once; one carried on reaches it through an exit.
+  if (!current) await update($, shown, () => opener)
 }
 
 export const register: Register = on => {
-  // Set when a task finishes, so the next quiet stretch opens with a hop instead of a wave.
-  let finishedSinceQuiet = false
+  // Set when a task ends, so the next quiet moment opens with a hop instead of a wave.
+  let taskEnded = false
 
   // Track background work ourselves: a launch adds it, its completion notice removes it.
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
     if (result.isError) return result
+    // Work a background agent starts inside itself is the agent's to wait on, not Claude's.
+    if (e.agentId) return result
 
+    if (e.tool === 'TaskStop') {
+      // A stopped task sends no end notice, so it is dropped here.
+      const stopped = [field(result.result, 'task_id'), e.task_id, e.shell_id].filter((id): id is string => !!id)
+      if (stopped.length > 0) await update($, waiting, items => items.filter(i => !names(i, stopped))).catch(() => {})
+      return result
+    }
+
+    const since = await $.clock.now()
     let item: WaitItem | null = null
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && e.run_in_background) {
-      item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}` }
+      const taskId = field(result.result, 'backgroundTaskId')
+      item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}`, since, taskId }
     } else if (e.tool === 'Agent' && e.run_in_background !== false) {
-      // The launch answers with the agent's id, which the agent list keys it by.
-      const agentId = agentIdOf(result.result)
-      item = { id: e.tool_use_id, kind: 'subagent', label: short(e.description), hint: `${e.description} ${e.subagent_type ?? ''}`, agentId }
+      // The launch answers with the agent's id: its notices and the agent list use it.
+      const agentId = field(result.result, 'agentId')
+      item = { id: e.tool_use_id, kind: 'subagent', label: short(e.description), hint: `${e.description} ${e.subagent_type ?? ''}`, since, taskId: agentId, agentId }
     } else if (e.tool === 'Monitor') {
-      item = { id: e.tool_use_id, kind: 'monitor', label: short(e.description), hint: e.description }
+      const taskId = field(result.result, 'taskId')
+      item = { id: e.tool_use_id, kind: 'monitor', label: short(e.description), hint: e.description, since, taskId }
     }
     if (item) {
       const added = item
@@ -163,11 +198,14 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await update($, waiting, () => [])
     await update($, scene, () => null)
+    await $.command.register({ name: 'clawd-reset', description: 'Clear the background work Clawd is waiting on' })
 
     $.clock.every(1000, async () => {
-      await sweepAgents($, await read($, waiting)).catch(() => {})
+      await sweep($, await $.clock.now()).catch(() => {})
       const current = await read($, scene)
       const items = await read($, waiting)
+      // Nothing left to wait on: the quiet stretch is over.
+      if (current && items.length === 0) await update($, scene, () => null)
       if (!current || items.length === 0) return
       const target = pickAnimation(items, (await $.clock.now()) - current.since, current.opener)
       const now = await read($, shown)
@@ -178,35 +216,39 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A way out when a task's end was missed: /clawd-reset forgets everything in flight.
+  on('command.run', { command: 'clawd-reset' }, async $ => {
+    await update($, waiting, () => [])
+    await update($, scene, () => null)
+    return { text: 'Clawd is no longer waiting on anything.' }
+  })
+
   // A finished task's notice can arrive as a delivery or as the text of the turn it wakes.
   on('session.receive', async ($, e, next) => {
-    if (e.origin.kind === 'task-notification' && (await finish($, e.text))) finishedSinceQuiet = true
+    if (e.origin.kind === 'task-notification' && (await finish($, e.text))) taskEnded = true
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
-    if (!e.agentId) {
-      if (await finish($, e.text)) finishedSinceQuiet = true
-      await update($, scene, () => null).catch(() => {})
-    }
+    if (!e.agentId && (await finish($, e.text))) taskEnded = true
     return next(e)
   })
 
-  // Claude went quiet. If work is still running, a new quiet stretch begins.
+  // The person is back: the next quiet moment starts fresh, with its own wave and timers.
+  on('prompt.submit', async ($, e, next) => {
+    await update($, scene, () => null).catch(() => {})
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     // A background agent's turn ending is not its end: it may be waiting on work of
-    // its own. The clock's sweep of the agent list drops it once it is really done.
+    // its own. Its end notice drops it.
     if (e.agentId) return result
 
     const items = await read($, waiting).catch(() => [] as WaitItem[])
-    if (items.length > 0) {
-      const opener: Scene['opener'] = finishedSinceQuiet ? 'hop' : 'wave'
-      finishedSinceQuiet = false
-      const since = await $.clock.now()
-      await update($, scene, () => ({ since, opener })).catch(() => {})
-      await update($, shown, () => opener).catch(() => {})
-    }
+    if (items.length > 0) await quiet($, taskEnded).catch(() => {})
+    taskEnded = false
     return result
   })
 

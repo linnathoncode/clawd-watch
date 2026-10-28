@@ -1,12 +1,12 @@
 import { expect, test } from 'claude-code/testing'
-import { agentIdOf, describeWaiting, finishedTasks, inPhase, nextFrame, pickAnimation, taskAnimation } from './register'
+import { describeWaiting, field, finishedTasks, inPhase, nextFrame, names, pickAnimation, taskAnimation } from './register'
 import { SPRITES } from './sprites'
 
-const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test' }
-const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src' }
-const agentWrite = { id: 'c', kind: 'subagent', label: 'Implement login', hint: 'Implement login general-purpose' }
-const agentThink = { id: 'd', kind: 'subagent', label: 'Review the plan', hint: 'Review the plan Plan' }
-const monitor = { id: 'e', kind: 'monitor', label: 'CI', hint: 'CI' }
+const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test', since: 0 }
+const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src', since: 0 }
+const agentWrite = { id: 'c', kind: 'subagent', label: 'Implement login', hint: 'Implement login general-purpose', since: 0 }
+const agentThink = { id: 'd', kind: 'subagent', label: 'Review the plan', hint: 'Review the plan Plan', since: 0 }
+const monitor = { id: 'e', kind: 'monitor', label: 'CI', hint: 'CI', since: 0 }
 
 test('describes the newest background wait', async () => {
   expect(describeWaiting([shell])).toBe('Waiting on command: npm test')
@@ -65,9 +65,19 @@ test('the laptop glow picks up where the clock has it', () => {
   expect(inPhase(SPRITES.listening ?? '', 2300)).toBe(SPRITES.listening ?? '')
 })
 
-test('reads the agent id from a launch, whatever else it carries', () => {
-  expect(agentIdOf({ agentId: 'a1' })).toBe('a1')
-  expect(agentIdOf({ status: 'async_launched', agentId: 'a2', description: 'x' })).toBe('a2')
-  expect(agentIdOf('Async agent launched')).toBe(undefined)
-  expect(agentIdOf(undefined)).toBe(undefined)
+test('reads a field from a result, whatever else it carries', () => {
+  expect(field({ agentId: 'a1' }, 'agentId')).toBe('a1')
+  expect(field({ status: 'async_launched', agentId: 'a2', description: 'x' }, 'agentId')).toBe('a2')
+  expect(field({ backgroundTaskId: 'b7' }, 'backgroundTaskId')).toBe('b7')
+  expect(field('Async agent launched', 'agentId')).toBe(undefined)
+  expect(field(undefined, 'agentId')).toBe(undefined)
+})
+
+test('a task is named by its tool call, task id or agent id', () => {
+  const agent = { id: 'toolu_1', kind: 'subagent', label: 'x', hint: 'x', since: 0, taskId: 'a9', agentId: 'a9' }
+  const cmd = { id: 'toolu_2', kind: 'shell', label: 'x', hint: 'x', since: 0, taskId: 'bnlzmv5ql' }
+  expect(names(agent, ['toolu_1'])).toBe(true)
+  expect(names(agent, ['a9'])).toBe(true)
+  expect(names(cmd, ['bnlzmv5ql'])).toBe(true)
+  expect(names(cmd, ['a9', 'toolu_1'])).toBe(false)
 })

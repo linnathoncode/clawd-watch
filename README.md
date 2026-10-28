@@ -42,6 +42,19 @@ claude plugin install clawd-watch --marketplace linnathoncode/clawd-watch
 In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
 with `linnathoncode/clawd-watch`, then **Add plugin**.
 
+To update:
+
+```bash
+claude plugin update clawd-watch@clawd-watch
+```
+
+A session keeps the version it started with, so an update shows up in new sessions only.
+
+## If Clawd stays up after the work is done
+
+Clawd drops a task when its end notice arrives, when Claude stops it, or after two hours.
+If one still gets stuck, run `/clawd-reset` to clear everything Clawd is waiting on.
+
 ## Development
 
 ```bash
