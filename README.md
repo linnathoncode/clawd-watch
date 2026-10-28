@@ -26,17 +26,17 @@ in the terminal.
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install clawd-watch --marketplace furkangocuk/clawd-watch
+/plugin install clawd-watch --marketplace linnathoncode/clawd-watch
 ```
 
 From a shell:
 
 ```bash
-claude plugin install clawd-watch --marketplace furkangocuk/clawd-watch
+claude plugin install clawd-watch --marketplace linnathoncode/clawd-watch
 ```
 
 In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
-with `furkangocuk/clawd-watch`, then **Add plugin**.
+with `linnathoncode/clawd-watch`, then **Add plugin**.
 
 ## Development
 
