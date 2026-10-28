@@ -10,7 +10,7 @@
 // A switch from A to B plays A-out, then B, so every pair moves through the same
 // standing pose instead of cutting from one motion straight into another.
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -212,6 +212,28 @@ ${lines.join('\n')}
 window.EXITS = {
 ${exitLines.join('\n')}
 }
+`,
+)
+// The README's previews: each animation on a light tile, so it reads on GitHub's light and
+// dark themes alike, and a banner of Clawd asleep beside the band's text.
+const TILE = '#F4EFE8'
+mkdirSync(join(root, 'docs/previews'), { recursive: true })
+for (const id of USED) {
+  writeFileSync(
+    join(root, `docs/previews/${id}.svg`),
+    frames[id]
+      .replace('viewBox="0 0 32 22"', 'viewBox="0 0 32 22" width="128" height="88"')
+      .replace('</style>', `</style><rect x="0" y="0" width="32" height="22" rx="2" fill="${TILE}"/>`),
+  )
+}
+const asleep = frames.sleeping.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
+writeFileSync(
+  join(root, 'docs/previews/banner.svg'),
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 96" width="480" height="96" role="img" aria-label="Clawd asleep while Claude waits on npm test">
+<rect x="0.5" y="0.5" width="479" height="95" rx="10" fill="${TILE}" stroke="#E2DACF"/>
+<svg id="clawd-sleeping" x="16" y="12" width="104" height="72" viewBox="0 0 32 22" shape-rendering="crispEdges">${asleep}</svg>
+<text x="132" y="54" font-family="ui-sans-serif, -apple-system, 'Segoe UI', sans-serif" font-size="17" font-weight="500" fill="#C8613F">Waiting on command: npm test… (+1 more)</text>
+</svg>
 `,
 )
 console.log(`wrote ${Object.keys(frames).length} frames: ${Object.keys(frames).join(' ')}`)

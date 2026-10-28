@@ -1,6 +1,10 @@
 # clawd-watch
 
-A Claude Code plugin that puts Clawd, a small animated pixel creature, above the prompt
+<p align="center">
+  <img src="docs/previews/banner.svg" width="480" alt="Clawd asleep while Claude waits on npm test">
+</p>
+
+A Claude Code plugin that puts Clawd above the prompt
 while Claude is idle but still waiting on background work: a background command,
 a background agent or a Monitor listener. The text beside it says what Claude is waiting on, for example
 `Waiting on command: npm test… (+1 more)`, and it disappears when the work finishes
@@ -8,16 +12,16 @@ and Claude picks the conversation back up.
 
 What Clawd does depends on the work and on how long the wait has run:
 
-| When | Clawd |
-| --- | --- |
-| Claude goes quiet | waves (or hops, if a task just finished) |
-| a command or Monitor is running | listens to music on headphones |
-| the newest task is a command that tests, builds, installs or deploys | thinks |
-| the newest task is a search (`rg`, `grep`, `find`, "search…") | peers through a magnifier |
-| a background agent is writing or fixing code | types on a laptop |
-| a background agent is doing anything else | thinks |
-| every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch otherwise |
-| after 3 minutes | falls asleep |
+| When | Clawd | |
+| --- | --- | --- |
+| Claude goes quiet | waves (or hops, if a task just finished) | <img src="docs/previews/wave.svg" width="96" alt="Clawd waving"> |
+| a command or Monitor is running | listens to music on headphones | <img src="docs/previews/listening.svg" width="96" alt="Clawd listening on headphones"> |
+| the newest task is a command that tests, builds, installs or deploys | thinks | <img src="docs/previews/thinking.svg" width="96" alt="Clawd thinking"> |
+| the newest task is a search (`rg`, `grep`, `find`, "search…") | peers through a magnifier | <img src="docs/previews/searching.svg" width="96" alt="Clawd searching with a magnifier"> |
+| a background agent is writing or fixing code | types on a laptop | <img src="docs/previews/writing.svg" width="96" alt="Clawd typing on a laptop"> |
+| a background agent is doing anything else | thinks | <img src="docs/previews/thinking.svg" width="96" alt="Clawd thinking"> |
+| every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch otherwise | <img src="docs/previews/stretch.svg" width="96" alt="Clawd stretching at the laptop"> |
+| after 3 minutes | falls asleep | <img src="docs/previews/sleeping.svg" width="96" alt="Clawd asleep"> |
 
 Clawd never cuts straight from one animation into another. The one ending puts its props
 away (the headphones lift off, the laptop drops, the magnifier lowers) and Clawd settles into a
@@ -81,7 +85,8 @@ The hooks module is `hooks/register.tsx`. The animations are drawn in `sheet/cla
 node scripts/build-sprites.mjs
 ```
 
-The build also writes `sheet/frames.js` for `sheet/transitions.html`. That page plays every
+The build also writes this README's previews (`docs/previews`) and `sheet/frames.js` for
+`sheet/transitions.html`. That page plays every
 switch the plugin makes between animations, using the built frames and the plugin's one-second
 tick. It has slow motion, pause and step, and a picker for any pair of animations. Open it
 straight from disk in a browser, and rebuild and reload it after each change.
