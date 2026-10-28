@@ -81,3 +81,12 @@ test('a task is named by its tool call, task id or agent id', () => {
   expect(names(cmd, ['bnlzmv5ql'])).toBe(true)
   expect(names(cmd, ['a9', 'toolu_1'])).toBe(false)
 })
+
+test('an agent hand-back message is its end', () => {
+  const handback = `Another Claude session sent a message:
+<agent-message from="a2d636191cc997101">
+[Subagent hand-back] The text below is the final report of a subagent this session delegated to.
+  done
+</agent-message>`
+  expect(finishedTasks(handback)).toEqual(['a2d636191cc997101'])
+})

@@ -89,8 +89,10 @@ const short = (text: string) => {
 // The ids (tool_use ids, and task ids) of the tasks whose notifications in `text` say they ended.
 // One turn can carry several notifications, so each one is read on its own.
 export function finishedTasks(text: string): string[] {
-  const blocks = text.match(/<task-notification>[\s\S]*?<\/task-notification>/g) ?? [text]
   const done: string[] = []
+  // A background agent's final report can come as a hand-back message from the agent.
+  for (const m of text.matchAll(/<agent-message from="([^"]+)">\s*\[Subagent hand-back\]/g)) if (m[1]) done.push(m[1])
+  const blocks = text.match(/<task-notification>[\s\S]*?<\/task-notification>/g) ?? (done.length ? [] : [text])
   for (const block of blocks) {
     // An agent that stops while its own background work runs sends a "completed"
     // notice that is not its end; its real end comes as another notice later.
@@ -130,13 +132,13 @@ export function field(result: unknown, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-// Drops what can no longer be running: an agent the session lists as failed or killed
-// ("completed" is left to its end notice, since an agent paused on work of its own is
-// listed that way too), and anything so old its end notice must have been lost.
+// Drops what can no longer be running: an agent the session lists as ended (one paused on
+// work of its own is listed as `waiting`, not ended), and anything so old its end notice
+// must have been lost.
 async function sweep($: EngineInterface, now: number): Promise<void> {
   const items = await read($, waiting)
   if (items.length === 0) return
-  const dead = items.some(i => i.agentId) ? (await $.agent.list()).filter(a => /failed|killed/.test(a.status)).map(a => a.id) : []
+  const dead = items.some(i => i.agentId) ? (await $.agent.list()).filter(a => /completed|failed|killed/.test(a.status)).map(a => a.id) : []
   const gone = (i: WaitItem) => now - i.since > FORGET_AFTER_MS || (!!i.agentId && dead.includes(i.agentId))
   if (items.some(gone)) await update($, waiting, all => all.filter(i => !gone(i)))
 }
@@ -234,9 +236,11 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The person is back: the next quiet moment starts fresh, with its own wave and timers.
+  // A local task's notice, and an agent's hand-back, come in as a submission of their own.
+  // Only the person's own prompt starts the next quiet moment fresh, with its own wave and timers.
   on('prompt.submit', async ($, e, next) => {
-    await update($, scene, () => null).catch(() => {})
+    if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') await update($, scene, () => null).catch(() => {})
+    else if (await finish($, e.text)) taskEnded = true
     return next(e)
   })
 
