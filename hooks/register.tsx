@@ -170,11 +170,16 @@ async function trace($: EngineInterface, note?: string): Promise<void> {
   // The scene's age moves every tick: only the rest of the state counts as a change.
   const key = state.replace(/@\d+s/, '')
   if (!note && key === traced.last) return
+  // Short helper runs in the same folder (with nothing in flight) must not overwrite the log.
+  if (traced.lines.length === 0 && items.length === 0) return
   traced.last = key
   if (!traced.start) traced.start = now
   traced.lines.push(`${((now - traced.start) / 1000).toFixed(0).padStart(4)}s  ${note ? `${note}  ` : ''}${state}`)
   await $.fs.write(TRACE_LOG, `${traced.lines.join('\n')}\n`)
 }
+
+// Where a prompt the person typed comes from: the terminal, a phone or web client, the desktop app.
+const PERSON: readonly string[] = ['composer', 'bridge', 'sdk']
 
 export const register: Register = on => {
   // Set when a task ends, so the next quiet moment opens with a hop instead of a wave.
@@ -260,7 +265,8 @@ export const register: Register = on => {
   // A local task's notice, and an agent's hand-back, come in as a submission of their own.
   // Only the person's own prompt starts the next quiet moment fresh, with its own wave and timers.
   on('prompt.submit', async ($, e, next) => {
-    if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') await update($, scene, () => null).catch(() => {})
+    // The desktop app hands the person's prompts over as an SDK host's.
+    if (PERSON.includes(e.origin.kind)) await update($, scene, () => null).catch(() => {})
     else if (await finish($, e.text)) taskEnded = true
     await trace($, `prompt.submit(${e.origin.kind})`).catch(() => {})
     return next(e)
