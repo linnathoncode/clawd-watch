@@ -2,14 +2,14 @@ import { expect, test } from 'claude-code/testing'
 import { describeWaiting, field, finishedTasks, inPhase, nextFrame, names, pickAnimation, taskAnimation } from './register'
 import { SPRITES } from './sprites'
 
-const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test', since: 0 }
+const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src', since: 0 }
 const agentWrite = { id: 'c', kind: 'subagent', label: 'Implement login', hint: 'Implement login general-purpose', since: 0 }
 const agentThink = { id: 'd', kind: 'subagent', label: 'Review the plan', hint: 'Review the plan Plan', since: 0 }
 const monitor = { id: 'e', kind: 'monitor', label: 'CI', hint: 'CI', since: 0 }
 
 test('describes the newest background wait', async () => {
-  expect(describeWaiting([shell])).toBe('Waiting on command: npm test')
+  expect(describeWaiting([shell])).toBe('Waiting on command: Start the dev server')
   expect(describeWaiting([agentThink, monitor])).toBe('Waiting on monitor: CI (+1 more)')
 })
 
@@ -19,13 +19,16 @@ test('picks an animation from the task', () => {
   expect(taskAnimation(agentWrite)).toBe('writing')
   expect(taskAnimation(agentThink)).toBe('thinking')
   expect(taskAnimation(monitor)).toBe('listening')
+  expect(taskAnimation({ ...shell, hint: 'Run the test suite npm test' })).toBe('thinking')
+  expect(taskAnimation({ ...shell, hint: 'Build the app cargo build --release' })).toBe('thinking')
+  expect(taskAnimation({ ...shell, hint: 'Wait for the release sleep 200' })).toBe('listening')
 })
 
 test('opens, takes idle breaks and falls asleep over time', () => {
   expect(pickAnimation([shell], 0, 'wave')).toBe('wave')
   expect(pickAnimation([shell], 1000, 'hop')).toBe('hop')
   expect(pickAnimation([shell], 10_000, 'wave')).toBe('listening')
-  expect(pickAnimation([shell], 31_000, 'wave')).toBe('listening')
+  expect(pickAnimation([shell], 31_000, 'wave')).toBe('idle')
   expect(pickAnimation([agentThink], 31_000, 'wave')).toBe('idle')
   expect(pickAnimation([agentThink], 37_000, 'wave')).toBe('idle')
   expect(pickAnimation([agentThink], 39_000, 'wave')).toBe('thinking')

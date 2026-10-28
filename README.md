@@ -12,10 +12,11 @@ What Clawd does depends on the work and on how long the wait has run:
 | --- | --- |
 | Claude goes quiet | waves (or hops, if a task just finished) |
 | a command or Monitor is running | listens to music on headphones |
+| the newest task is a command that tests, builds, installs or deploys | thinks |
 | the newest task is a search (`rg`, `grep`, `find`, "search…") | peers through a magnifier |
 | a background agent is writing or fixing code | types on a laptop |
 | a background agent is doing anything else | thinks |
-| every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch while thinking or searching (listening needs no break) |
+| every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch otherwise |
 | after 3 minutes | falls asleep |
 
 Clawd never cuts straight from one animation into another. The one ending puts its props

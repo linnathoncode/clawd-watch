@@ -18,11 +18,12 @@ const FORGET_AFTER_MS = 2 * 60 * 60 * 1000 // a task this old lost its end notic
 const BREAK_EVERY_MS = 30 * 1000 // now and then, a short break
 
 // The break each task takes, and how long it lasts: the exit into it plus one whole
-// cycle of the break animation. Listening is already at rest, so it takes none.
+// cycle of the break animation.
 const BREAKS: Partial<Record<AnimId, { anim: AnimId; ms: number }>> = {
   writing: { anim: 'stretch', ms: 4000 }, // the laptop stays, so there is no exit
   thinking: { anim: 'idle', ms: 8000 },
   searching: { anim: 'idle', ms: 8000 },
+  listening: { anim: 'idle', ms: 8000 },
 }
 
 // The laptop screen's flicker loop, in ms (the sheet's glow). Each frame at the laptop
@@ -38,6 +39,8 @@ export function inPhase(svg: string, now: number): string {
 const SHARED: readonly AnimId[] = ['writing', 'stretch']
 
 const SEARCH = /\b(grep|rg|find|search\w*|look(ing)? for|locate|explore|scan)\b/i
+// A command that works something out (tests, a build, an install) rather than one that just runs.
+const WORK = /\b(test\w*|pytest|jest|vitest|build\w*|compil\w*|install\w*|deploy\w*|lint\w*|tsc|cargo|make|gradle|mvn)\b/i
 const WRITE = /\b(writ\w*|implement\w*|edit\w*|fix\w*|refactor\w*|creat\w*|add\w*|updat\w*|build\w*|draft\w*)\b/i
 
 // The animation for what is running, before timing is taken into account.
@@ -45,6 +48,7 @@ export function taskAnimation(item: WaitItem | undefined): AnimId {
   if (!item) return 'listening'
   if (SEARCH.test(item.hint)) return 'searching'
   if (item.kind === 'subagent') return WRITE.test(item.hint) ? 'writing' : 'thinking'
+  if (item.kind === 'shell' && WORK.test(item.hint)) return 'thinking'
   return 'listening'
 }
 
@@ -54,7 +58,8 @@ export function pickAnimation(items: readonly WaitItem[], elapsed: number, opene
   if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
   // The newest task leads: it is the one Claude most likely stopped to wait for.
   const task = taskAnimation(items[items.length - 1])
-  // A break from writing is a stretch at the laptop; thinking and searching scratch their head.
+  // A break from writing is a stretch at the laptop; the others take the headphones off or
+  // put the magnifier down and scratch their head.
   const pause = BREAKS[task]
   if (pause && elapsed >= BREAK_EVERY_MS && elapsed % BREAK_EVERY_MS < pause.ms) return pause.anim
   return task
