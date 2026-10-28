@@ -13,8 +13,11 @@ export type WaitItem = { id: string; kind: string; label: string; hint: string; 
 // A quiet stretch: when Claude went quiet with work running, and the animation it opens with.
 export type Scene = { since: number; opener: 'wave' | 'hop' }
 
+// The frame on screen: when it started, and for an exit, how far into its loop it cut in (ms).
+export type Motion = { since: number; elapsed: number }
+
 declare module 'claude-code' {
   interface PluginState {
-    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; shown: Frame }
+    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; shown: Frame; motion: Motion }
   }
 }

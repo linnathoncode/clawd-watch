@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, field, finishedTasks, inPhase, nextFrame, names, pickAnimation, taskAnimation } from './register'
-import { SPRITES } from './sprites'
+import { describeWaiting, exitFrame, field, finishedTasks, homeTimes, inPhase, nextFrame, names, pickAnimation, taskAnimation } from './register'
+import { EXITS, SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src', since: 0 }
@@ -63,9 +63,30 @@ test('spots every finished task in a turn', () => {
   expect(finishedTasks(agentEnd)).toEqual(['a9'])
 })
 
-test('the laptop glow picks up where the clock has it', () => {
+test('the laptop glow picks up where the clock had it when the frame started', () => {
   for (const f of ['writing', 'writing~', 'stretch', 'stretch~']) expect(inPhase(SPRITES[f] ?? '', 2300)).toContain('animation-delay:-100ms')
   expect(inPhase(SPRITES.listening ?? '', 2300)).toBe(SPRITES.listening ?? '')
+})
+
+test('an exit plays its loop on until each part is home, parts on one beat together', () => {
+  // Cut in at the loop's start: everything is already home.
+  expect(homeTimes(EXITS['listening-out'] ?? [], 0).every(t => t === 0)).toBe(true)
+  // Searching cut in while Clawd stands forward at the glass: it walks back to the
+  // middle (96%), its steps and lean stopping with it.
+  expect(new Set(homeTimes(EXITS['searching-out'] ?? [], 2000))).toEqual(new Set([2800]))
+  // Thinking's bob, sway and chin keep beats of their own: each stops at its next home.
+  expect(homeTimes(EXITS['thinking-out'] ?? [], 1000)).toEqual([600, 1400, 200])
+})
+
+test('every exit is filled in, wherever it cuts in', () => {
+  for (const frame of Object.keys(EXITS)) {
+    for (const elapsed of [0, 333, 1250, 2900, 6100, 47_123]) {
+      const { svg, ms } = exitFrame(frame, elapsed)
+      expect(svg).not.toContain('__')
+      expect(ms).toBeGreaterThanOrEqual(700)
+      expect(ms).toBeLessThanOrEqual(8000 + 350)
+    }
+  }
 })
 
 test('reads a field from a result, whatever else it carries', () => {

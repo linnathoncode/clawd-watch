@@ -1,13 +1,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { AnimId, Frame, Scene, WaitItem } from '../types'
-import { SPRITES } from './sprites'
+import type { AnimId, Frame, Motion, Scene, WaitItem } from '../types'
+import type { Part } from './sprites'
+import { EXITS, SPRITES } from './sprites'
 
 const waiting = atom({ plugin: 'clawd-watch', key: 'waiting' } as const, [] as WaitItem[])
 // When Claude last went quiet with work still running, and how that quiet stretch opens.
 const scene = atom({ plugin: 'clawd-watch', key: 'scene' } as const, null as Scene | null)
 const shown = atom({ plugin: 'clawd-watch', key: 'shown' } as const, 'listening' as Frame)
+// When the frame on screen started, and for an exit, how far into its loop it cut in.
+const motion = atom({ plugin: 'clawd-watch', key: 'motion' } as const, { since: 0, elapsed: 0 } as Motion)
 
 const CLAY = '#D97757'
 
@@ -30,9 +33,10 @@ const BREAKS: Partial<Record<AnimId, { anim: AnimId; ms: number }>> = {
 // starts the flicker where the clock has it, so a switch keeps the light steady.
 const GLOW_MS = 1100
 
-export function inPhase(svg: string, now: number): string {
+// `since` is when the frame started, so the same frame always draws the same SVG.
+export function inPhase(svg: string, since: number): string {
   if (!svg.includes('class="glow"')) return svg
-  return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${now % GLOW_MS}ms !important}</style>`)
+  return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${since % GLOW_MS}ms !important}</style>`)
 }
 
 // Animations that share a prop switch straight to each other, the prop staying put.
@@ -74,6 +78,61 @@ export function nextFrame(current: Frame, target: AnimId): Frame {
   if (playing === target) return current
   if (SHARED.includes(playing) && SHARED.includes(target)) return `${target}~`
   return `${playing}-out`
+}
+
+// An exit finishes the loop it cuts into (see scripts/build-sprites.mjs): it plays on until
+// every part of Clawd is at home at the same moment, then the parts holding an item ease
+// back to standing while the props leave.
+const SETTLE_MS = 350
+const LEAVE_MS = 700 // the props leaving, and sleep's wake-up
+const NEAR_MS = 1 // rounding: the spans are whole milliseconds
+const LOOK_AHEAD_MS = 8000
+const EXIT_SLACK_MS = 50 // the drawing starts a moment after the frame is written
+
+const mod = (x: number, m: number) => ((x % m) + m) % m
+
+function atHome(part: Part, x: number): boolean {
+  const at = mod(x, part.ms)
+  return part.home.some(([a, b]) => at >= a - NEAR_MS && at < b + NEAR_MS) || (at > part.ms - NEAR_MS && part.home.some(([a]) => a === 0))
+}
+
+// When each part stops, in ms after cutting in `elapsed` ms into the loop. Parts that
+// share a beat (the same loop length, like a walk and its steps) stop together, at the
+// first moment all of them are home; parts on other beats stop on their own.
+export function homeTimes(parts: readonly Part[], elapsed: number): number[] {
+  const at = parts.map(p => elapsed - p.delay)
+  const times = parts.map(() => 0)
+  for (const ms of new Set(parts.map(p => p.ms))) {
+    const group = parts.flatMap((p, i) => (p.ms === ms ? [i] : []))
+    const candidates = [0]
+    for (const i of group) {
+      for (const [a] of parts[i]?.home ?? []) for (let t = mod(a - (at[i] ?? 0), ms); t <= LOOK_AHEAD_MS; t += ms) candidates.push(t)
+    }
+    candidates.sort((x, y) => x - y)
+    const home = (i: number, t: number) => atHome(parts[i] as Part, (at[i] ?? 0) + t)
+    const together = candidates.find(t => group.every(i => home(i, t)))
+    // No moment soon enough: each part stops at its own next home.
+    for (const i of group) times[i] = together ?? candidates.find(t => home(i, t)) ?? 0
+  }
+  return times
+}
+
+// The exit `frame`, cut in `elapsed` ms into its loop, and how long it takes.
+export function exitFrame(frame: Frame, elapsed: number): { svg: string; ms: number } {
+  const parts = EXITS[frame] ?? []
+  const times = homeTimes(parts, elapsed)
+  let svg = SPRITES[frame] ?? ''
+  let ms = LEAVE_MS
+  parts.forEach((p, i) => {
+    const at = mod(elapsed - p.delay, p.ms)
+    const t = times[i] ?? 0
+    svg = svg
+      .replace(`__D${i}__`, `${-Math.round(at)}ms`)
+      .replace(`__C${i}__`, String((at + t) / p.ms))
+      .replace(`__F${i}__`, `${Math.round(t)}ms`)
+    ms = Math.max(ms, t + (p.settle ? SETTLE_MS : 0))
+  })
+  return { svg, ms }
 }
 
 const KIND: Record<string, string> = { shell: 'command', subagent: 'agent', monitor: 'monitor', workflow: 'workflow' }
@@ -158,7 +217,10 @@ async function quiet($: EngineInterface, taskEnded: boolean): Promise<void> {
   const opener: Scene['opener'] = taskEnded ? 'hop' : 'wave'
   await update($, scene, () => ({ since, opener }))
   // A fresh stretch shows its opener at once; one carried on reaches it through an exit.
-  if (!current) await update($, shown, () => opener)
+  if (!current) {
+    await update($, shown, () => opener)
+    await update($, motion, () => ({ since, elapsed: 0 }))
+  }
 }
 
 // A trace for testing: while a `.clawd-trace` file sits in the working directory, every
@@ -234,19 +296,34 @@ export const register: Register = on => {
     await update($, scene, () => null)
     await $.command.register({ name: 'clawd-reset', description: 'Clear the background work Clawd is waiting on' })
 
-    $.clock.every(1000, async () => {
-      await trace($).catch(() => {})
-      await sweep($, await $.clock.now()).catch(() => {})
+    // Moves Clawd on to its next frame, if it is time.
+    const step = async (): Promise<void> => {
       const current = await read($, scene)
       const items = await read($, waiting)
       // Nothing left to wait on: the quiet stretch is over.
       if (current && items.length === 0) await update($, scene, () => null)
       if (!current || items.length === 0 || busy) return
-      const target = pickAnimation(items, (await $.clock.now()) - current.since, current.opener)
+      const t = await $.clock.now()
+      const target = pickAnimation(items, t - current.since, current.opener)
       const now = await read($, shown)
+      const playing = await read($, motion)
+      // An exit runs until its loop has come home and its props have left.
+      if (now.endsWith('-out') && t < playing.since + exitFrame(now, playing.elapsed).ms) return
       const frame = nextFrame(now, target)
       // Write only on a change, so the drawing is not redrawn (and restarted) every second.
-      if (frame !== now) await update($, shown, () => frame)
+      if (frame === now) return
+      const elapsed = frame.endsWith('-out') ? t - playing.since : 0
+      await update($, motion, () => ({ since: t, elapsed }))
+      await update($, shown, () => frame)
+      // The next animation comes in the moment the exit is over, not at the next tick,
+      // so Clawd never stands about between the two.
+      if (frame.endsWith('-out')) $.clock.after(exitFrame(frame, elapsed).ms + EXIT_SLACK_MS, () => void step().catch(() => {}))
+    }
+
+    $.clock.every(1000, async () => {
+      await trace($).catch(() => {})
+      await sweep($, await $.clock.now()).catch(() => {})
+      await step()
     })
     return next(e)
   })
@@ -306,7 +383,9 @@ export const register: Register = on => {
     }
 
     const frame = await read($, shown)
-    const source = inPhase(SPRITES[frame] ?? SPRITES.listening ?? '', await $.clock.now())
+    const { since, elapsed } = await read($, motion)
+    const svg = frame.endsWith('-out') ? exitFrame(frame, elapsed).svg : (SPRITES[frame] ?? SPRITES.listening ?? '')
+    const source = inPhase(svg, since)
     const { Box, Text, Svg } = $.ui.resolve(e)
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>

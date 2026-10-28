@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clawd Transitions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Every switch the plugin makes between animations, played with the plugin's own frames
+     (frames.js) and its one-second tick. Run scripts/build-sprites.mjs and reload after a change. */
+  :root {
+    --bg: #E9ECEF; --panel: #F7F8F9; --stage: #DDE1E5; --grid: rgba(40, 52, 64, 0.07);
+    --fg: #1D2329; --muted: #5B6670; --line: #CBD1D7; --clay: #C8613F; --clay-ink: #FFFFFF;
+    --font-display: "Silkscreen", "Courier New", monospace;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    --sprite: 192px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181B; --panel: #1C2024; --stage: #23282D; --grid: rgba(220, 230, 240, 0.05);
+      --fg: #E6E9EC; --muted: #98A2AC; --line: #30363C; --clay: #E07B57; --clay-ink: #1A1410;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181B; --panel: #1C2024; --stage: #23282D; --grid: rgba(220, 230, 240, 0.05);
+    --fg: #E6E9EC; --muted: #98A2AC; --line: #30363C; --clay: #E07B57; --clay-ink: #1A1410;
+    color-scheme: dark;
+  }
+  :root.actual { --sprite: 80px; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0 0 6px; }
+  h2 { font-family: var(--font-display); font-weight: 400; font-size: 17px; margin: 0; }
+  .lede, .note { color: var(--muted); margin: 0; max-width: 72ch; }
+  code { font-family: var(--font-mono); font-size: 12.5px; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px;
+    margin: 20px 0 28px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .label { font-size: 12px; color: var(--muted); margin-right: 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button, .btn {
+    font: 500 12.5px var(--font-body); color: var(--fg); background: transparent; border: 0; padding: 5px 10px; cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--clay); color: var(--clay-ink); }
+  .btn { border: 1px solid var(--line); border-radius: 6px; }
+  .btn:hover, .seg button:hover:not([aria-pressed="true"]) { background: var(--stage); }
+  .spacer { flex: 1; }
+  .clock { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+  select { font: 13px var(--font-body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+
+  section { margin-top: 36px; }
+  section > header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--sprite) + 60px), 1fr)); gap: 14px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+  .card.focus { outline: 2px solid var(--clay); outline-offset: -1px; }
+  .stage {
+    display: grid; place-items: center; padding: 14px; cursor: pointer;
+    background-color: var(--stage);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 8px 8px;
+  }
+  .stage svg { width: var(--sprite); height: calc(var(--sprite) * 22 / 32); display: block; }
+  .meta { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .title { font-weight: 600; font-size: 13.5px; }
+  .why { color: var(--muted); font-size: 12.5px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip {
+    font-family: var(--font-mono); font-size: 11.5px; padding: 1px 6px; border-radius: 4px;
+    border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+  }
+  .chip.out { border-style: dashed; }
+  .chip.now { background: var(--clay); border-color: var(--clay); color: var(--clay-ink); }
+
+  .pair { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .custom { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  @media (min-width: 720px) { .custom { grid-template-columns: auto minmax(0, 1fr); align-items: start; } }
+  .custom .card { min-width: calc(var(--sprite) + 60px); }
+  .help { color: var(--muted); font-size: 12.5px; margin: 0; }
+  .help li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Clawd Transitions</h1>
+    <p class="lede">Every switch the plugin makes between animations, played with its real frames on its one-second tick. Every loop starts and ends on the same standing pose. A switch plays the current animation's exit (<code>-out</code>, dashed, with its length): the loop plays on until Clawd is back to standing, held items ease away and the props leave. Then the next animation makes its entrance. Writing and stretch share the laptop and switch straight across (<code>~</code>).</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Playback">
+    <div><span class="label" id="speed-label">Speed</span><span class="seg" id="speed" role="group" aria-labelledby="speed-label">
+      <button data-v="0.25">¼×</button><button data-v="0.5">½×</button><button data-v="1" aria-pressed="true">1×</button>
+    </span></div>
+    <div><span class="label" id="size-label">Size</span><span class="seg" id="size" role="group" aria-labelledby="size-label">
+      <button data-v="large" aria-pressed="true">Large</button><button data-v="actual">In app</button>
+    </span></div>
+    <button class="btn" id="play">Pause</button>
+    <button class="btn" id="step" disabled>Step</button>
+    <button class="btn" id="restart">Restart</button>
+    <span class="spacer"></span>
+    <span class="clock" id="clock">0.0 s</span>
+  </div>
+
+  <section>
+    <header>
+      <h2>Any pair</h2>
+      <p class="note">Pick two animations to watch the switch both ways. Click any stage to restart just that one.</p>
+    </header>
+    <div class="custom">
+      <div id="custom-slot"></div>
+      <div class="meta">
+        <div class="pair">
+          <select id="from" aria-label="From"></select><span>→</span><select id="to" aria-label="To"></select>
+          <label><input type="checkbox" id="back" checked> and back</label>
+        </div>
+        <ul class="help">
+          <li>Edit an animation in <code>sheet/clawd-animations.html</code>, or its entrance and exit in <code>scripts/build-sprites.mjs</code>.</li>
+          <li>Run <code>node scripts/build-sprites.mjs</code>, then reload this page.</li>
+          <li>Slow it to ¼×, pause on a dashed chip and step through the exit a tenth of a second at a time.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <main id="groups"></main>
+</div>
+
+<script src="frames.js"></script>
+<script>
+(() => {
+  const ANIMS = ['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch', 'wave', 'hop', 'sleeping']
+  const SHARED = ['writing', 'stretch']
+  const GLOW_MS = 1100
+
+  // A copy of nextFrame in hooks/register.tsx: keep the two the same.
+  function nextFrame(current, target) {
+    if (current.endsWith('-out')) return target
+    const playing = current.replace('~', '')
+    if (playing === target) return current
+    if (SHARED.includes(playing) && SHARED.includes(target)) return `${target}~`
+    return `${playing}-out`
+  }
+
+  // A copy of inPhase: the laptop glow picks up where the clock had it when the frame started.
+  function inPhase(svg, since) {
+    if (!svg.includes('class="glow"')) return svg
+    return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${since % GLOW_MS}ms !important}</style>`)
+  }
+
+  // Copies of homeTimes and exitFrame: an exit plays its loop on until each part is home.
+  const SETTLE_MS = 350, LEAVE_MS = 700, NEAR_MS = 1, LOOK_AHEAD_MS = 8000
+  const mod = (x, m) => ((x % m) + m) % m
+  function atHome(part, x) {
+    const at = mod(x, part.ms)
+    return part.home.some(([a, b]) => at >= a - NEAR_MS && at < b + NEAR_MS) || (at > part.ms - NEAR_MS && part.home.some(([a]) => a === 0))
+  }
+  function homeTimes(parts, elapsed) {
+    const at = parts.map(p => elapsed - p.delay)
+    const times = parts.map(() => 0)
+    for (const ms of new Set(parts.map(p => p.ms))) {
+      const group = parts.flatMap((p, i) => (p.ms === ms ? [i] : []))
+      const candidates = [0]
+      for (const i of group) for (const [a] of parts[i].home) for (let t = mod(a - at[i], ms); t <= LOOK_AHEAD_MS; t += ms) candidates.push(t)
+      candidates.sort((x, y) => x - y)
+      const home = (i, t) => atHome(parts[i], at[i] + t)
+      const together = candidates.find(t => group.every(i => home(i, t)))
+      for (const i of group) times[i] = together ?? candidates.find(t => home(i, t)) ?? 0
+    }
+    return times
+  }
+  function exitFrame(frame, elapsed) {
+    const parts = window.EXITS[frame] ?? []
+    const times = homeTimes(parts, elapsed)
+    let svg = window.SPRITES[frame] ?? ''
+    let ms = LEAVE_MS
+    parts.forEach((p, i) => {
+      const at = mod(elapsed - p.delay, p.ms)
+      const t = times[i]
+      svg = svg.replace(`__D${i}__`, `${-Math.round(at)}ms`).replace(`__C${i}__`, String((at + t) / p.ms)).replace(`__F${i}__`, `${Math.round(t)}ms`)
+      ms = Math.max(ms, t + (p.settle ? SETTLE_MS : 0))
+    })
+    return { svg, ms }
+  }
+
+  // Each step is [animation, ticks it plays once it is on screen]. Holds follow the plugin's
+  // timings: the opener runs 2.5 s, a stretch break 4 s and an idle break 8 s.
+  const GROUPS = [
+    {
+      title: 'Openers',
+      note: 'When Claude goes quiet with work running, Clawd waves, or hops if a task just ended, then settles into the task.',
+      cards: [
+        ...['listening', 'thinking', 'writing', 'searching'].map(t => ({ steps: [['wave', 3], [t, 5]], why: 'wait begins' })),
+        ...['listening', 'thinking', 'writing', 'searching'].map(t => ({ steps: [['hop', 3], [t, 5]], why: 'a task just ended' })),
+      ],
+    },
+    {
+      title: 'Breaks',
+      note: 'Every 30 s the task takes a break. Writing stretches at the laptop; the rest put their prop down and scratch their head.',
+      cards: [
+        { steps: [['writing', 4], ['stretch', 4], ['writing', 4]], why: 'laptop stays' },
+        { steps: [['thinking', 4], ['idle', 8], ['thinking', 4]], why: 'head scratch' },
+        { steps: [['searching', 4], ['idle', 8], ['searching', 4]], why: 'head scratch' },
+        { steps: [['listening', 4], ['idle', 8], ['listening', 4]], why: 'head scratch' },
+      ],
+    },
+    {
+      title: 'Task changes',
+      note: 'A finished task brings a hop at the next quiet moment. A new task becomes the lead, since the newest one leads.',
+      cards: [
+        ...['writing', 'thinking', 'searching', 'listening'].map(f => ({ steps: [[f, 4], ['hop', 3], ['listening', 4]], why: 'task ended' })),
+        { steps: [['listening', 4], ['writing', 5]], why: 'agent started' },
+        { steps: [['writing', 4], ['thinking', 5]], why: 'newest task' },
+        { steps: [['thinking', 4], ['searching', 5]], why: 'newest task' },
+        { steps: [['searching', 4], ['listening', 5]], why: 'newest task' },
+      ],
+    },
+    {
+      title: 'Sleep',
+      note: 'After 3 minutes Clawd falls asleep from whatever is showing, and wakes with the next wave or hop.',
+      cards: [
+        ...['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch'].map(f => ({ steps: [[f, 4], ['sleeping', 6]], why: '3 min in' })),
+        { steps: [['sleeping', 5], ['wave', 3], ['listening', 4]], why: 'you prompt again' },
+        { steps: [['sleeping', 5], ['hop', 3], ['listening', 4]], why: 'task ended' },
+      ],
+    },
+  ]
+
+  // Runs a schedule the way the plugin does: a step every second, and one the moment an
+  // exit is over (EXIT_SLACK_MS after it). Gives each frame shown, when it started (ms)
+  // and, for an exit, how far into its loop it cut in; and how long the whole run takes.
+  const EXIT_SLACK_MS = 50
+  function simulate(steps) {
+    let now = 0
+    let state = { frame: steps[0][0], since: 0, elapsed: 0 }
+    const shown = [state]
+    const step = target => {
+      const exitMs = state.frame.endsWith('-out') ? exitFrame(state.frame, state.elapsed).ms : 0
+      const tick = Math.floor(now / 1000) * 1000 + 1000
+      now = exitMs ? Math.min(tick, Math.max(now + 1, state.since + exitMs + EXIT_SLACK_MS)) : tick
+      if (exitMs && now < state.since + exitMs) return
+      const frame = nextFrame(state.frame, target)
+      if (frame === state.frame) return
+      state = { frame, since: now, elapsed: frame.endsWith('-out') ? now - state.since : 0 }
+      shown.push(state)
+    }
+    steps.forEach(([anim, hold], j) => {
+      if (j > 0) for (let guard = 0; state.frame.replace('~', '') !== anim && guard < 40; guard++) step(anim)
+      const until = now + hold * 1000
+      while (Math.floor(now / 1000) * 1000 + 1000 < until) step(anim)
+    })
+    return { shown, total: Math.floor(now / 1000) * 1000 + 1000 }
+  }
+
+  // Plays one schedule.
+  class Player {
+    constructor(steps, why) {
+      this.el = document.createElement('article')
+      this.el.className = 'card'
+      this.el.innerHTML = `<div class="stage" title="Restart this one"></div><div class="meta"><div class="title"></div>${why ? `<div class="why"></div>` : ''}<div class="strip"></div></div>`
+      this.stage = this.el.querySelector('.stage')
+      this.stage.addEventListener('click', () => { this.start = clock; this.shown = null; this.draw() })
+      if (why) this.el.querySelector('.why').textContent = why
+      this.set(steps)
+    }
+    set(steps) {
+      this.steps = steps
+      this.run = simulate(steps)
+      this.el.querySelector('.title').textContent = steps.map(s => s[0]).join(' → ')
+      // The strip: each frame in order, with how long an exit runs.
+      this.el.querySelector('.strip').innerHTML = this.run.shown.map(f => {
+        const out = f.frame.endsWith('-out')
+        return `<span class="chip${out ? ' out' : ''}">${f.frame}${out ? ` ${(exitFrame(f.frame, f.elapsed).ms / 1000).toFixed(1)}s` : ''}</span>`
+      }).join('')
+      this.chips = [...this.el.querySelectorAll('.chip')]
+      this.start = clock
+      this.shown = null
+      this.draw()
+    }
+    draw() {
+      const t = (clock - this.start) % this.run.total
+      const at = this.run.shown.findLastIndex(f => f.since <= t)
+      const f = this.run.shown[at]
+      // Only a new frame is drawn again, as in the plugin: redrawing restarts its animation.
+      if (f !== this.shown || t < this.lastT) {
+        this.shown = f
+        const svg = f.frame.endsWith('-out') ? exitFrame(f.frame, f.elapsed).svg : (window.SPRITES[f.frame] ?? '')
+        this.stage.innerHTML = inPhase(svg, f.since)
+        applySpeed(this.stage)
+        // Start it as far in as the clock has gone since it was due.
+        for (const a of this.stage.getAnimations({ subtree: true })) a.currentTime = (a.currentTime ?? 0) + (t - f.since)
+        if (!timer) for (const a of this.stage.getAnimations({ subtree: true })) a.pause()
+      }
+      this.lastT = t
+      this.chips.forEach((c, i) => c.classList.toggle('now', i === at))
+    }
+  }
+
+  // The page's clock, in the plugin's milliseconds; it moves at the chosen speed.
+  const FRAME_MS = 20
+  let speed = 1
+  let clock = 0
+  let timer = null
+  const players = []
+
+  function applySpeed(root) {
+    for (const a of root.getAnimations ? root.getAnimations({ subtree: true }) : []) a.playbackRate = speed
+  }
+  function advance(ms) {
+    clock += ms
+    document.getElementById('clock').textContent = `${(clock / 1000).toFixed(1)} s`
+    players.forEach(p => p.draw())
+  }
+  function run() {
+    clearInterval(timer)
+    let last = performance.now()
+    timer = setInterval(() => {
+      const now = performance.now()
+      advance((now - last) * speed)
+      last = now
+    }, FRAME_MS)
+  }
+
+  // Groups.
+  const groups = document.getElementById('groups')
+  for (const g of GROUPS) {
+    const s = document.createElement('section')
+    s.innerHTML = `<header><h2></h2><p class="note"></p></header><div class="grid"></div>`
+    s.querySelector('h2').textContent = g.title
+    s.querySelector('.note').textContent = g.note
+    for (const c of g.cards) {
+      const p = new Player(c.steps, c.why)
+      players.push(p)
+      s.querySelector('.grid').append(p.el)
+    }
+    groups.append(s)
+  }
+
+  // Any pair.
+  const from = document.getElementById('from')
+  const to = document.getElementById('to')
+  const back = document.getElementById('back')
+  for (const sel of [from, to]) sel.innerHTML = ANIMS.map(a => `<option>${a}</option>`).join('')
+  from.value = 'listening'
+  to.value = 'idle'
+  const hold = a => (a === 'wave' || a === 'hop' ? 3 : 5)
+  const pairSteps = () => [[from.value, hold(from.value)], [to.value, hold(to.value)], ...(back.checked ? [[from.value, hold(from.value)]] : [])]
+  const custom = new Player(pairSteps())
+  custom.el.classList.add('focus')
+  document.getElementById('custom-slot').append(custom.el)
+  players.push(custom)
+  for (const el of [from, to, back]) el.addEventListener('change', () => custom.set(pairSteps()))
+
+  // Controls.
+  function pick(group, button) {
+    for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === button))
+  }
+  const speedSeg = document.getElementById('speed')
+  speedSeg.addEventListener('click', e => {
+    const b = e.target.closest('button')
+    if (!b) return
+    pick(speedSeg, b)
+    speed = Number(b.dataset.v)
+    applySpeed(document)
+    if (timer) run()
+  })
+  const sizeSeg = document.getElementById('size')
+  sizeSeg.addEventListener('click', e => {
+    const b = e.target.closest('button')
+    if (!b) return
+    pick(sizeSeg, b)
+    document.documentElement.classList.toggle('actual', b.dataset.v === 'actual')
+  })
+  const play = document.getElementById('play')
+  const step = document.getElementById('step')
+  play.addEventListener('click', () => {
+    const paused = !!timer
+    if (paused) { clearInterval(timer); timer = null } else run()
+    for (const a of document.getAnimations()) paused ? a.pause() : a.play()
+    play.textContent = paused ? 'Play' : 'Pause'
+    step.disabled = !paused
+  })
+  // A step moves everything on by a tenth of a second.
+  const STEP_MS = 100
+  step.addEventListener('click', () => {
+    for (const a of document.getAnimations()) a.currentTime = (a.currentTime ?? 0) + STEP_MS
+    advance(STEP_MS)
+  })
+  document.getElementById('restart').addEventListener('click', () => {
+    clock = 0
+    players.forEach(p => { p.start = 0; p.shown = null })
+    advance(0)
+  })
+
+  run()
+})()
+</script>
+</body>
+</html>

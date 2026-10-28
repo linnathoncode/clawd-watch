@@ -287,14 +287,14 @@
         $ .shadowg{animation:${id}-sh ${d(0.5)} ease-in-out infinite}
         $ .eyes-c{animation:${id}-ec ${d(4)} steps(1) infinite} $ .eyes-h{animation:${id}-eh ${d(4)} steps(1) infinite}
         $ .mn{opacity:0;animation:${id}-mn ${d(2.4)} ease-out infinite} $ .m1{animation-delay:${d(0.8)}} $ .m2{animation-delay:${d(1.6)}}
-        @keyframes ${id}-hb{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
-        @keyframes ${id}-bp{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
-        @keyframes ${id}-sq{0%,100%{transform:scale(1.04,.94)}50%{transform:scale(.98,1.04)}}
+        @keyframes ${id}-hb{0%{transform:rotate(0);animation-timing-function:ease-out}25%{transform:rotate(-7deg);animation-timing-function:ease-in-out}75%{transform:rotate(7deg);animation-timing-function:ease-in}100%{transform:rotate(0)}}
+        @keyframes ${id}-bp{0%,30%,100%{transform:translateY(0)}60%{transform:translateY(-1px)}}
+        @keyframes ${id}-sq{0%,100%{transform:scale(1,1)}20%{transform:scale(1.04,.94)}60%{transform:scale(.98,1.04)}}
         @keyframes ${id}-lk{0%,100%{transform:translateY(0)}50%{transform:translateY(1px)}}
         @keyframes ${id}-ear{0%,55%,85%,100%{transform:translate(0,0)}62%,78%{transform:translate(1px,-3px)}}
         @keyframes ${id}-tap{0%{transform:translateY(0)}50%{transform:translateY(-1px)}}
-        @keyframes ${id}-ft{0%{transform:translateY(-1px)}50%{transform:translateY(0)}}
-        @keyframes ${id}-sh{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.9)}}
+        @keyframes ${id}-ft{0%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-sh{0%,30%,100%{transform:scaleX(1)}60%{transform:scaleX(.9)}}
         @keyframes ${id}-ec{0%,59.9%,80%,100%{opacity:1}60%,79.9%{opacity:0}}
         @keyframes ${id}-eh{0%,59.9%,80%,100%{opacity:0}60%,79.9%{opacity:1}}
         @keyframes ${id}-mn{0%{opacity:0;transform:translate(0,3px) rotate(0)}15%{opacity:1}50%{transform:translate(var(--dx),-2px) rotate(-10deg)}80%{opacity:1}100%{opacity:0;transform:translate(0,-6px) rotate(10deg)}}`,
@@ -309,13 +309,13 @@
       css: id => `${blink(id, 3.4)}
         $ .jumper{animation:${id}-bob ${d(1.6)} ease-in-out infinite}
         $ .look{transform:translate(1px,-1px)}
-        $ .tilt{animation:${id}-tl ${d(3.2)} ease-in-out infinite alternate}
+        $ .tilt{animation:${id}-tl ${d(4.8)} ease-in-out infinite}
         $ .armR{animation:${id}-chin ${d(1.2)} ease-in-out infinite}
         $ .t0{animation:${id}-a ${d(3.6)} infinite} $ .t1{animation:${id}-b ${d(3.6)} infinite}
         $ .cloud{transform-origin:0% 100%;animation:${id}-c ${d(3.6)} infinite}
         $ .cd{animation:${id}-d ${d(0.9)} infinite} $ .c1{animation-delay:${d(0.3)}} $ .c2{animation-delay:${d(0.6)}}
         @keyframes ${id}-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
-        @keyframes ${id}-tl{from{transform:rotate(-2deg)}to{transform:rotate(5deg)}}
+        @keyframes ${id}-tl{0%,50%,100%{transform:rotate(0)}25%{transform:rotate(5deg)}75%{transform:rotate(-2deg)}}
         @keyframes ${id}-chin{0%,100%{transform:translate(-1px,-2px)}50%{transform:translate(-1px,-3px)}}
         @keyframes ${id}-a{0%,6%{opacity:0}10%,90%{opacity:1}96%,100%{opacity:0}}
         @keyframes ${id}-b{0%,16%{opacity:0}20%,90%{opacity:1}96%,100%{opacity:0}}
@@ -506,7 +506,7 @@
         $ .glint{animation:${id}-gl ${d(1.2)} steps(1) infinite}
         $ .look{animation:${id}-lk ${d(5)} ease-in-out infinite}
         $ .eyes-n{animation:${id}-en ${d(5)} steps(1) infinite} $ .eyes-s{animation:${id}-es ${d(5)} steps(1) infinite}
-        @keyframes ${id}-mv{0%,100%{transform:translateX(-7px)}32%,66%{transform:translateX(1px)}96%{transform:translateX(-7px)}}
+        @keyframes ${id}-mv{0%,96%,100%{transform:translateX(0)}32%,66%{transform:translateX(4px)}}
         @keyframes ${id}-lg{0%,4%,8%,12%,16%,20%,24%,28%,68%,72%,76%,80%,84%,88%,92%{transform:scaleY(1)}2%,6%,10%,14%,18%,22%,26%,30%,70%,74%,78%,82%,86%,90%,94%{transform:scaleY(.5)}32%,66%,96%,100%{transform:scaleY(1)}}
         @keyframes ${id}-ln{0%,30%,68%,100%{transform:rotate(0)}36%,62%{transform:rotate(5deg)}}
         @keyframes ${id}-sq{0%,30%,68%,100%{transform:scale(1,1)}36%{transform:scale(1.04,.95)}44%,58%{transform:scale(.98,1.04)}64%{transform:scale(1,1)}}

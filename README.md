@@ -81,6 +81,11 @@ The hooks module is `hooks/register.tsx`. The animations are drawn in `sheet/cla
 node scripts/build-sprites.mjs
 ```
 
+The build also writes `sheet/frames.js` for `sheet/transitions.html`. That page plays every
+switch the plugin makes between animations, using the built frames and the plugin's one-second
+tick. It has slow motion, pause and step, and a picker for any pair of animations. Open it
+straight from disk in a browser, and rebuild and reload it after each change.
+
 ## License
 
 MIT
