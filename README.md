@@ -57,6 +57,10 @@ If one still gets stuck, run `/clawd-reset` to clear everything Clawd is waiting
 
 ## Development
 
+To see what Clawd tracks, create an empty `.clawd-trace` file in the session's working
+directory. From the next time Claude goes quiet, each change in what Clawd waits on and
+which frame it shows is written to `.clawd-trace.log` beside it.
+
 ```bash
 claude --plugin-dir .
 ```

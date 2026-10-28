@@ -156,6 +156,26 @@ async function quiet($: EngineInterface, taskEnded: boolean): Promise<void> {
   if (!current) await update($, shown, () => opener)
 }
 
+// A trace for testing: while a `.clawd-trace` file sits in the working directory, every
+// change in what Clawd waits on and shows goes to `.clawd-trace.log` beside it.
+const TRACE_LOG = '.clawd-trace.log'
+const traced = { on: false, start: 0, last: '', lines: [] as string[] }
+
+async function trace($: EngineInterface, note?: string): Promise<void> {
+  if (!traced.on) return
+  const now = await $.clock.now()
+  const items = await read($, waiting)
+  const current = await read($, scene)
+  const state = `frame=${await read($, shown)} scene=${current ? `${current.opener}@${Math.round((now - current.since) / 1000)}s` : 'none'} waiting=[${items.map(i => i.label).join(' | ')}]`
+  // The scene's age moves every tick: only the rest of the state counts as a change.
+  const key = state.replace(/@\d+s/, '')
+  if (!note && key === traced.last) return
+  traced.last = key
+  if (!traced.start) traced.start = now
+  traced.lines.push(`${((now - traced.start) / 1000).toFixed(0).padStart(4)}s  ${note ? `${note}  ` : ''}${state}`)
+  await $.fs.write(TRACE_LOG, `${traced.lines.join('\n')}\n`)
+}
+
 export const register: Register = on => {
   // Set when a task ends, so the next quiet moment opens with a hop instead of a wave.
   let taskEnded = false
@@ -203,6 +223,7 @@ export const register: Register = on => {
     await $.command.register({ name: 'clawd-reset', description: 'Clear the background work Clawd is waiting on' })
 
     $.clock.every(1000, async () => {
+      await trace($).catch(() => {})
       await sweep($, await $.clock.now()).catch(() => {})
       const current = await read($, scene)
       const items = await read($, waiting)
@@ -241,6 +262,7 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') await update($, scene, () => null).catch(() => {})
     else if (await finish($, e.text)) taskEnded = true
+    await trace($, `prompt.submit(${e.origin.kind})`).catch(() => {})
     return next(e)
   })
 
@@ -250,6 +272,7 @@ export const register: Register = on => {
     // its own. Its end notice drops it.
     if (e.agentId) return result
 
+    traced.on = await $.fs.exists('.clawd-trace').catch(() => false)
     const items = await read($, waiting).catch(() => [] as WaitItem[])
     if (items.length > 0) await quiet($, taskEnded).catch(() => {})
     taskEnded = false
