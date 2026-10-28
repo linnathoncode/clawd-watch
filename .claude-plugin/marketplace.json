@@ -1,6 +1,6 @@
 {
-  "name": "pixel-buddy",
-  "description": "pixel-buddy: a Claude Code plugin that shows what Claude is waiting on",
+  "name": "clawd-watch",
+  "description": "clawd-watch: a Claude Code plugin that shows what Claude is waiting on",
   "owner": { "name": "furkangocuk" },
-  "plugins": [{ "name": "pixel-buddy", "source": "./" }]
+  "plugins": [{ "name": "clawd-watch", "source": "./" }]
 }

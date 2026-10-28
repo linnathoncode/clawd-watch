@@ -1,8 +1,8 @@
-# pixel-buddy
+# clawd-watch
 
-A Claude Code plugin that puts a small animated pixel creature above the prompt
+A Claude Code plugin that puts Clawd, a small animated pixel creature, above the prompt
 while Claude is idle but still waiting on background work: a background command,
-a background agent or a Monitor listener. The creature glances around with signal
+a background agent or a Monitor listener. Clawd glances around with signal
 waves pulsing over its head, and the text beside it says what Claude is waiting on,
 for example `Waiting on command: npm test… (+1 more)`. It disappears when the work
 finishes and Claude picks the conversation back up.
@@ -15,17 +15,17 @@ in the terminal.
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install pixel-buddy --marketplace furkangocuk/pixel-buddy
+/plugin install clawd-watch --marketplace furkangocuk/clawd-watch
 ```
 
 From a shell:
 
 ```bash
-claude plugin install pixel-buddy --marketplace furkangocuk/pixel-buddy
+claude plugin install clawd-watch --marketplace furkangocuk/clawd-watch
 ```
 
 In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
-with `furkangocuk/pixel-buddy`, then **Add plugin**.
+with `furkangocuk/clawd-watch`, then **Add plugin**.
 
 ## Development
 

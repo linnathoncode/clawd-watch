@@ -3,7 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { WaitItem } from '../types'
 
-const waiting = atom({ plugin: 'pixel-buddy', key: 'waiting' } as const, [] as WaitItem[])
+const waiting = atom({ plugin: 'clawd-watch', key: 'waiting' } as const, [] as WaitItem[])
 
 const CLAY = '#D97757'
 const INK = '#1F1E1D'
@@ -110,7 +110,7 @@ export const register: Register = on => {
     const { Box, Text, Svg } = $.ui.resolve(e)
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Svg source={SVG} alt={`Pixel buddy: ${text}`} width={72} height={48} isInteractive />
+        <Svg source={SVG} alt={`Clawd: ${text}`} width={72} height={48} isInteractive />
         <Text color={CLAY} weight="medium">
           {text}…
         </Text>
