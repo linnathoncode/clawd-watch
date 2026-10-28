@@ -1,5 +1,9 @@
-// The animations Clawd can show (hooks/sprites.ts holds one SVG for each).
-export type AnimId = 'idle' | 'listening' | 'thinking' | 'writing' | 'hop' | 'sleeping' | 'searching' | 'wave'
+// The animations Clawd can show.
+export type AnimId = 'idle' | 'listening' | 'thinking' | 'writing' | 'stretch' | 'hop' | 'sleeping' | 'searching' | 'wave'
+
+// A frame on screen: an animation (`writing`), its exit (`writing-out`), or its loop
+// without an entrance (`writing~`). hooks/sprites.ts holds the SVG for each.
+export type Frame = string
 
 // A background task Claude may be waiting on. `hint` is the text the animation is chosen from.
 // `agentId` is set for a background agent, so its end can be spotted in the agent list.
@@ -10,6 +14,6 @@ export type Scene = { since: number; opener: 'wave' | 'hop' }
 
 declare module 'claude-code' {
   interface PluginState {
-    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; shown: AnimId }
+    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; shown: Frame }
   }
 }

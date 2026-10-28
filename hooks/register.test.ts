@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, finishedTasks, pickAnimation, taskAnimation } from './register'
+import { describeWaiting, finishedTasks, nextFrame, pickAnimation, taskAnimation } from './register'
 
 const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test' }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src' }
@@ -28,6 +28,21 @@ test('opens, takes idle breaks and falls asleep over time', () => {
   expect(pickAnimation([shell], 36_000, 'wave')).toBe('listening')
   expect(pickAnimation([shell, agentWrite], 10_000, 'wave')).toBe('writing')
   expect(pickAnimation([shell], 4 * 60_000, 'wave')).toBe('sleeping')
+})
+
+test('a break from writing is a stretch at the laptop', () => {
+  expect(pickAnimation([agentWrite], 31_000, 'wave')).toBe('stretch')
+  expect(pickAnimation([agentThink], 31_000, 'wave')).toBe('idle')
+})
+
+test('every switch passes through an exit, except between shared props', () => {
+  expect(nextFrame('listening', 'listening')).toBe('listening')
+  expect(nextFrame('wave', 'listening')).toBe('wave-out')
+  expect(nextFrame('wave-out', 'listening')).toBe('listening')
+  expect(nextFrame('writing', 'stretch')).toBe('stretch~')
+  expect(nextFrame('stretch~', 'writing')).toBe('writing~')
+  expect(nextFrame('writing~', 'writing')).toBe('writing~')
+  expect(nextFrame('writing~', 'sleeping')).toBe('writing-out')
 })
 
 test('spots every finished task in a turn', () => {

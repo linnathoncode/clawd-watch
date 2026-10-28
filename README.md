@@ -15,8 +15,12 @@ What Clawd does depends on the work and on how long the wait has run:
 | the newest task is a search (`rg`, `grep`, `find`, "search…") | peers through a magnifier |
 | a background agent is writing or fixing code | types on a laptop |
 | a background agent is doing anything else | thinks |
-| every 30 seconds | takes a 4-second idle break and scratches its head |
+| every 30 seconds | takes a 4-second break: a head scratch, or a stretch at the laptop while writing |
 | after 3 minutes | falls asleep |
+
+Clawd never cuts straight from one animation into another. The one ending puts its props
+away (the headphones lift off, the laptop drops, the magnifier lowers) and Clawd settles into a
+plain standing pose; the next one then pops in with its own props.
 
 It draws as an animated SVG in the Claude desktop app and as a one-line text badge
 in the terminal.
@@ -52,7 +56,12 @@ claude plugin validate .
 claude plugin test .
 ```
 
-The hooks module is `hooks/register.tsx`; the animations are standalone SVGs in `hooks/sprites.ts`.
+The hooks module is `hooks/register.tsx`. The animations are drawn in `sheet/clawd-animations.html`
+(open it in a browser to see them all); `hooks/sprites.ts` is built from it:
+
+```bash
+node scripts/build-sprites.mjs
+```
 
 ## License
 

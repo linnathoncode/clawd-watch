@@ -1,0 +1,618 @@
+<title>Clawd Animation Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a sprite sheet. Controls strip on top, then an even grid of stages, each a pixel cell with its name and when to use it. */
+  :root {
+    --bg: #E9ECEF;
+    --panel: #F7F8F9;
+    --stage: #DDE1E5;
+    --grid: rgba(40, 52, 64, 0.07);
+    --fg: #1D2329;
+    --muted: #5B6670;
+    --line: #CBD1D7;
+    --clay: #C8613F;
+    --clay-ink: #FFFFFF;
+    --font-display: "Silkscreen", "Courier New", monospace;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181B; --panel: #1C2024; --stage: #23282D; --grid: rgba(220, 230, 240, 0.05);
+      --fg: #E6E9EC; --muted: #98A2AC; --line: #30363C; --clay: #E07B57; --clay-ink: #1A1410;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181B; --panel: #1C2024; --stage: #23282D; --grid: rgba(220, 230, 240, 0.05);
+    --fg: #E6E9EC; --muted: #98A2AC; --line: #30363C; --clay: #E07B57; --clay-ink: #1A1410;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 56px;
+    display: grid;
+    gap: 28px;
+  }
+  header { display: grid; gap: 10px; }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(28px, 5vw, 44px);
+    line-height: 1.05;
+    margin: 0;
+    color: var(--clay);
+    text-wrap: balance;
+  }
+  .lede { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    padding: 12px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .control { display: flex; align-items: center; gap: 10px; }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  input[type="range"] { accent-color: var(--clay); width: 140px; }
+  .readout { font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-width: 4ch; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  button {
+    font: 500 13px var(--font-body);
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--stage); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--clay); color: var(--clay-ink); }
+  .spacer { flex: 1 1 0; }
+
+  .sheet {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    grid-auto-flow: dense;
+  }
+  .cell {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 210px;
+    background-color: var(--stage);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 12px 12px;
+  }
+  .stage svg { width: var(--sprite-w, 192px); max-width: 90%; height: auto; display: block; }
+  .wide .stage svg { width: calc(var(--sprite-w, 192px) * 1.5); }
+  @media (min-width: 560px) { .cell.wide { grid-column: span 2; } }
+  .tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--clay);
+    color: var(--clay-ink);
+  }
+  .meta { display: grid; gap: 6px; padding: 12px 14px 14px; align-content: start; min-width: 0; }
+  .name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  h2 { font-family: var(--font-display); font-weight: 400; font-size: 17px; margin: 0; }
+  .when { margin: 0; color: var(--muted); font-size: 14px; }
+  .copy { font-size: 12px; padding: 4px 10px; }
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    height: 90px;
+    font: 11px/1.4 var(--font-mono);
+    color: var(--fg);
+    background: var(--stage);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    resize: vertical;
+  }
+  footer { color: var(--muted); font-size: 13px; }
+
+  body.paused .stage svg * { animation-play-state: paused !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Clawd Animation Sheet</h1>
+    <p class="lede">Thirteen pixel animations for Clawd in the clawd-watch plugin, each matched to something Claude can be doing. Copy any one as a standalone SVG and drop it into the plugin's drawing.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Playback">
+    <div class="control">
+      <label class="label" for="speed">Speed</label>
+      <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1">
+      <span class="readout" id="speed-out">1×</span>
+    </div>
+    <div class="control">
+      <span class="label" id="size-label">Size</span>
+      <div class="seg" role="group" aria-labelledby="size-label">
+        <button type="button" id="size-s" data-size="128">S</button>
+        <button type="button" id="size-m" data-size="192" aria-pressed="true">M</button>
+        <button type="button" id="size-l" data-size="264">L</button>
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <button type="button" id="pause" aria-pressed="false">Pause all</button>
+  </div>
+
+  <main class="sheet" id="sheet" aria-label="Animations"></main>
+
+  <footer>Fan-made sprite drawn for clawd-watch: a 14 × 8 pixel body in a 32 × 22 frame, built from nested parts (body, arms, legs, eyes, shadow) that each move on their own. Animations use CSS keyframes inside each SVG, so they keep running wherever the SVG is shown.</footer>
+</div>
+
+<script>
+(() => {
+  const CLAY = '#D97757', LIGHT = '#EE9C80', DARK = '#B45A3C', INK = '#1F1E1D';
+  const PAPER = '#F6F2EC', BLUE = '#8CCFF0', RED = '#E5484D', DUST = '#BDB6AE';
+  const d = s => `calc(${s}s / var(--speed, 1))`;
+  const r = (x, y, w, h, fill, extra = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"${extra}/>`;
+
+  // Clawd: 14 x 8 body at (9, 10) in a 32 x 22 frame, feet on y = 18.
+  // Nested groups let several motions stack: mover (across), flip (facing),
+  // jumper (up), squash (stretch), tilt (lean or spin), each limb and eye on its own.
+  // Legs sit inside tilt so they lean with the body, and shrink from the hip so a step lifts the foot.
+  const EYES = [13, 18];
+  const sprite = ({ fx = '', front = '', over = '' } = {}) => `
+    <g class="mover"><g class="flip">
+      <g class="shadowg">${r(11, 18, 10, 1, '#000', ' opacity=".22"')}</g>
+      ${fx}
+      <g class="jumper">
+        <g class="squash"><g class="tilt">
+          <g class="legs">${[12, 14, 17, 19].map((x, i) => `<g class="leg l${i + 1}">${r(x, 16, 1, 2, DARK)}</g>`).join('')}</g>
+          ${r(11, 10, 10, 6, CLAY)}${r(11, 10, 10, 1, LIGHT)}${r(12, 11, 1, 1, LIGHT)}${r(11, 15, 10, 1, DARK)}
+          <g class="armL">${r(9, 13, 2, 2, CLAY)}${r(9, 14, 2, 1, DARK)}</g>
+          <g class="armR">${r(21, 13, 2, 2, CLAY)}${r(21, 14, 2, 1, DARK)}</g>
+          <g class="face"><g class="look">
+            <g class="eyes-n"><g class="blink">${EYES.map(x => r(x, 12, 1, 2, INK)).join('')}</g></g>
+            <g class="eyes-h">${EYES.map(x => r(x - 1, 13, 1, 1, INK) + r(x, 12, 1, 1, INK) + r(x + 1, 13, 1, 1, INK)).join('')}</g>
+            <g class="eyes-c">${r(12, 13, 2, 1, INK)}${r(18, 13, 2, 1, INK)}</g>
+            <g class="eyes-w">${r(12, 12, 2, 2, INK)}${r(18, 12, 2, 2, INK)}${r(12, 12, 1, 1, '#FFF')}${r(18, 12, 1, 1, '#FFF')}</g>
+            <g class="eyes-s">${r(12, 13, 2, 1, INK)}</g>
+          </g></g>
+          ${front}
+        </g></g>
+      </g>
+      ${over}
+    </g></g>`;
+
+  const base = `$ *{transform-box:fill-box}
+    $ .squash,$ .tilt,$ .jumper{transform-origin:50% 100%}
+    $ .leg{transform-origin:50% 0%}
+    $ .blink,$ .look,$ .flip,$ .shadowg,$ .fxc{transform-origin:50% 50%}
+    $ .armL{transform-origin:100% 50%} $ .armR{transform-origin:0% 50%}
+    $ .eyes-h,$ .eyes-c,$ .eyes-w,$ .eyes-s{opacity:0}`;
+
+  const blink = (id, s = 4) => `$ .blink{animation:${id}-bk ${d(s)} infinite}
+    @keyframes ${id}-bk{0%,90%,97%,100%{transform:scaleY(1)}93.5%{transform:scaleY(.1)}}`;
+  const eyes = mode => `$ .eyes-n{opacity:0} $ .eyes-${mode}{opacity:1}`;
+
+  const z = (x, y, s, cls) => s === 3
+    ? `<g class="${cls}">${r(x, y, 3, 1, CLAY)}${r(x + 1, y + 1, 1, 1, CLAY)}${r(x, y + 2, 3, 1, CLAY)}</g>`
+    : `<g class="${cls}">${r(x, y, 4, 1, CLAY)}${r(x + 2, y + 1, 1, 1, CLAY)}${r(x + 1, y + 2, 1, 1, CLAY)}${r(x, y + 3, 4, 1, CLAY)}</g>`;
+  const note = (x, y, cls, style, c = CLAY) => `<g class="${cls}" style="${style}">${r(x + 1, y, 1, 4, c)}${r(x + 2, y, 1, 1, c)}${r(x + 3, y + 1, 1, 1, c)}${r(x, y + 3, 2, 2, c)}</g>`;
+  const sparkle = (x, y, cls) => `<g class="${cls}">${r(x, y - 2, 1, 5, '#F2C14E')}${r(x - 2, y, 5, 1, '#F2C14E')}</g>`;
+  const puff = (x, y, cls, style = '') => `<g class="${cls}" style="${style}">${r(x, y, 2, 1, DUST)}${r(x + 0.5, y - 1, 1, 1, DUST)}</g>`;
+
+  const LAPTOP = `<g class="laptop">${r(11, 14, 10, 3, '#8A939C')}${r(11, 14, 10, 1, '#A9B2BA')}${r(15, 15, 2, 1, '#D5DCE2', ' class="logo"')}${r(8, 17, 16, 1, '#6B747D')}${r(8, 17, 16, 1, '#000', ' opacity=".15"')}</g>`;
+
+  const ANIMS = [
+    {
+      id: 'idle', name: 'Idle', when: 'Nothing is running. Clawd breathes, blinks, glances around and scratches its head.',
+      sprite: {
+        fx: `<g class="itch">${r(21, 7, 1, 1, CLAY)}${r(23, 8, 1, 1, CLAY)}${r(22, 6, 1, 1, CLAY)}</g>`,
+      },
+      css: id => `${blink(id, 4)}
+        $ .squash{animation:${id}-br ${d(2.4)} ease-in-out infinite}
+        $ .look{animation:${id}-lk ${d(7)} infinite}
+        $ .tilt{animation:${id}-tl ${d(7)} ease-in-out infinite}
+        $ .armR{animation:${id}-sc ${d(7)} infinite}
+        $ .eyes-n{animation:${id}-en ${d(7)} steps(1) infinite} $ .eyes-c{animation:${id}-ec ${d(7)} steps(1) infinite}
+        $ .itch{opacity:0;animation:${id}-it ${d(7)} steps(1) infinite}
+        $ .l4{animation:${id}-tp ${d(7)} infinite}
+        @keyframes ${id}-br{0%,100%{transform:scale(1,1)}50%{transform:scale(.98,1.05)}}
+        @keyframes ${id}-lk{0%,14%,40%,100%{transform:translateX(0)}18%,26%{transform:translateX(-1px)}30%,36%{transform:translate(1px,-1px)}}
+        @keyframes ${id}-tl{0%,50%,82%,100%{transform:rotate(0)}56%,76%{transform:rotate(-5deg)}}
+        @keyframes ${id}-sc{0%,50%,82%,100%{transform:translate(0,0)}56%,60%,64%,68%,72%,76%{transform:translate(-1px,-4px)}58%,62%,66%,70%,74%{transform:translate(-2px,-5px)}}
+        @keyframes ${id}-en{0%,57.9%{opacity:1}58%,75.9%{opacity:0}76%,100%{opacity:1}}
+        @keyframes ${id}-ec{0%,57.9%{opacity:0}58%,75.9%{opacity:1}76%,100%{opacity:0}}
+        @keyframes ${id}-it{0%,57.9%{opacity:0}58%,59.9%,62%,63.9%,66%,67.9%,70%,71.9%{opacity:1}60%,61.9%,64%,65.9%,68%,69.9%,72%,100%{opacity:0}}
+        @keyframes ${id}-tp{0%,84%,100%{transform:translateY(0)}87%,93%{transform:translateY(-1px)}90%,96%{transform:translateY(0)}}`,
+    },
+    {
+      id: 'listening', name: 'Listening', tag: 'In clawd-watch', when: 'Claude has gone quiet while background work runs. Headphones on, bopping along to music until it finishes.',
+      sprite: {
+        fx: note(23, 3, 'mn m0', '--dx:3px') + note(5, 5, 'mn m1', '--dx:-3px', '#4FB3A9') + note(25, 6, 'mn m2', '--dx:2px', '#8E7CC3'),
+        front: `<g class="headset">${r(12, 8, 8, 1, '#3B4148')}${r(11, 9, 1, 1, '#3B4148')}${r(20, 9, 1, 1, '#3B4148')}
+          ${r(10, 10, 2, 3, '#2A2E33')}${r(20, 10, 2, 3, '#2A2E33')}${r(10, 10, 2, 1, '#545C65')}${r(20, 10, 2, 1, '#545C65')}</g>`,
+      },
+      css: id => `${eyes('c')}
+        $ .tilt{transform-origin:50% 100%;animation:${id}-hb ${d(1)} ease-in-out infinite}
+        $ .jumper{animation:${id}-bp ${d(0.5)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(0.5)} ease-in-out infinite}
+        $ .look{animation:${id}-lk ${d(1)} ease-in-out infinite}
+        $ .armL{animation:${id}-ear ${d(4)} ease-in-out infinite}
+        $ .armR{animation:${id}-tap ${d(0.5)} steps(1) infinite}
+        $ .l4{animation:${id}-ft ${d(0.5)} steps(1) infinite}
+        $ .shadowg{animation:${id}-sh ${d(0.5)} ease-in-out infinite}
+        $ .eyes-c{animation:${id}-ec ${d(4)} steps(1) infinite} $ .eyes-h{animation:${id}-eh ${d(4)} steps(1) infinite}
+        $ .mn{opacity:0;animation:${id}-mn ${d(2.4)} ease-out infinite} $ .m1{animation-delay:${d(0.8)}} $ .m2{animation-delay:${d(1.6)}}
+        @keyframes ${id}-hb{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+        @keyframes ${id}-bp{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-sq{0%,100%{transform:scale(1.04,.94)}50%{transform:scale(.98,1.04)}}
+        @keyframes ${id}-lk{0%,100%{transform:translateY(0)}50%{transform:translateY(1px)}}
+        @keyframes ${id}-ear{0%,55%,85%,100%{transform:translate(0,0)}62%,78%{transform:translate(1px,-3px)}}
+        @keyframes ${id}-tap{0%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-ft{0%{transform:translateY(-1px)}50%{transform:translateY(0)}}
+        @keyframes ${id}-sh{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.9)}}
+        @keyframes ${id}-ec{0%,59.9%,80%,100%{opacity:1}60%,79.9%{opacity:0}}
+        @keyframes ${id}-eh{0%,59.9%,80%,100%{opacity:0}60%,79.9%{opacity:1}}
+        @keyframes ${id}-mn{0%{opacity:0;transform:translate(0,3px) rotate(0)}15%{opacity:1}50%{transform:translate(var(--dx),-2px) rotate(-10deg)}80%{opacity:1}100%{opacity:0;transform:translate(0,-6px) rotate(10deg)}}`,
+    },
+    {
+      id: 'thinking', name: 'Thinking', when: 'The model is reasoning before it answers.',
+      sprite: {
+        fx: `${r(23, 8, 1, 1, PAPER, ' class="t0"')}${r(24, 6, 2, 1, PAPER, ' class="t1"')}
+          <g class="cloud">${r(26, 0, 5, 1, PAPER)}${r(25, 1, 7, 3, PAPER)}${r(26, 4, 5, 1, PAPER)}
+          ${[26, 28, 30].map((x, i) => r(x, 2, 1, 1, INK, ` class="cd c${i}"`)).join('')}</g>`,
+      },
+      css: id => `${blink(id, 3.4)}
+        $ .jumper{animation:${id}-bob ${d(1.6)} ease-in-out infinite}
+        $ .look{transform:translate(1px,-1px)}
+        $ .tilt{animation:${id}-tl ${d(3.2)} ease-in-out infinite alternate}
+        $ .armR{animation:${id}-chin ${d(1.2)} ease-in-out infinite}
+        $ .t0{animation:${id}-a ${d(3.6)} infinite} $ .t1{animation:${id}-b ${d(3.6)} infinite}
+        $ .cloud{transform-origin:0% 100%;animation:${id}-c ${d(3.6)} infinite}
+        $ .cd{animation:${id}-d ${d(0.9)} infinite} $ .c1{animation-delay:${d(0.3)}} $ .c2{animation-delay:${d(0.6)}}
+        @keyframes ${id}-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-tl{from{transform:rotate(-2deg)}to{transform:rotate(5deg)}}
+        @keyframes ${id}-chin{0%,100%{transform:translate(-1px,-2px)}50%{transform:translate(-1px,-3px)}}
+        @keyframes ${id}-a{0%,6%{opacity:0}10%,90%{opacity:1}96%,100%{opacity:0}}
+        @keyframes ${id}-b{0%,16%{opacity:0}20%,90%{opacity:1}96%,100%{opacity:0}}
+        @keyframes ${id}-c{0%,26%{opacity:0;transform:scale(.4)}34%{opacity:1;transform:scale(1.12)}40%,90%{opacity:1;transform:scale(1)}96%,100%{opacity:0;transform:scale(1)}}
+        @keyframes ${id}-d{0%,100%{opacity:.25}33%{opacity:1}}`,
+    },
+    {
+      id: 'walking', name: 'Working', when: 'A tool is running: editing a file, running a command.',
+      sprite: { fx: puff(9, 17, 'dust p0') + puff(7, 16, 'dust p1') },
+      css: id => `${blink(id, 3)}
+        $ .mover{animation:${id}-mv ${d(5)} ease-in-out infinite}
+        $ .flip{animation:${id}-fl ${d(5)} infinite}
+        $ .look{transform:translateX(1px)}
+        $ .jumper{animation:${id}-bn ${d(0.4)} ease-in-out infinite}
+        $ .leg{animation:${id}-lg ${d(0.4)} steps(1) infinite} $ .l2,$ .l4{animation-delay:${d(0.2)}}
+        $ .armL{animation:${id}-sw ${d(0.4)} ease-in-out infinite} $ .armR{animation:${id}-sw ${d(0.4)} ease-in-out infinite;animation-delay:${d(0.2)}}
+        $ .tilt{transform:rotate(3deg)}
+        $ .dust{opacity:0;animation:${id}-ds ${d(0.8)} ease-out infinite} $ .p1{animation-delay:${d(0.4)}}
+        @keyframes ${id}-mv{0%,100%{transform:translateX(-7px)}44%,50%{transform:translateX(7px)}94%{transform:translateX(-7px)}}
+        @keyframes ${id}-fl{0%,46.9%{transform:scaleX(1)}47%,96.9%{transform:scaleX(-1)}97%,100%{transform:scaleX(1)}}
+        @keyframes ${id}-bn{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-lg{0%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
+        @keyframes ${id}-sw{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-ds{0%{opacity:.9;transform:translateX(0) scale(.6)}100%{opacity:0;transform:translateX(-3px) scale(1.4)}}`,
+    },
+    {
+      id: 'writing', name: 'Writing', when: 'Claude is streaming its reply: typing away at a laptop.',
+      sprite: {
+        fx: [[24, 'lt'], [27, 'sl'], [29, 'gt']].map(([x, k], i) => {
+          const g = k === 'lt' ? r(x + 1, 0, 1, 1, CLAY) + r(x, 1, 1, 1, CLAY) + r(x + 1, 2, 1, 1, CLAY)
+            : k === 'gt' ? r(x, 0, 1, 1, CLAY) + r(x + 1, 1, 1, 1, CLAY) + r(x, 2, 1, 1, CLAY)
+            : r(x + 1, 0, 1, 1, CLAY) + r(x + 1, 1, 1, 1, CLAY) + r(x, 2, 1, 1, CLAY);
+          return `<g class="code k${i}" transform="translate(0 11)">${g}</g>`;
+        }).join(''),
+        front: r(11, 10, 10, 4, BLUE, ' class="glow" opacity="0"'),
+        over: LAPTOP,
+      },
+      css: id => `${blink(id, 3.4)}
+        $ .armL{animation:${id}-ty ${d(0.22)} steps(1) infinite} $ .armR{animation:${id}-ty2 ${d(0.22)} steps(1) infinite;animation-delay:${d(0.11)}}
+        $ .jumper{animation:${id}-bn ${d(0.44)} ease-in-out infinite}
+        $ .look{animation:${id}-lk ${d(5)} ease-in-out infinite}
+        $ .tilt{animation:${id}-tl ${d(5)} ease-in-out infinite}
+        $ .glow{animation:${id}-gw ${d(1.1)} steps(2) infinite}
+        $ .code{opacity:0;animation:${id}-cd ${d(1.8)} ease-out infinite} $ .k1{animation-delay:${d(0.6)}} $ .k2{animation-delay:${d(1.2)}}
+        @keyframes ${id}-ty{0%{transform:translate(0,0)}50%{transform:translate(1px,1px)}}
+        @keyframes ${id}-ty2{0%{transform:translate(0,0)}50%{transform:translate(-1px,1px)}}
+        @keyframes ${id}-bn{0%,100%{transform:translateY(0)}50%{transform:translateY(-.5px)}}
+        @keyframes ${id}-lk{0%,68%,86%,100%{transform:translateY(0)}72%,82%{transform:translate(1px,-1px)}}
+        @keyframes ${id}-tl{0%,68%,86%,100%{transform:rotate(0)}72%,82%{transform:rotate(-3deg)}}
+        @keyframes ${id}-gw{0%{opacity:.12}50%{opacity:.24}100%{opacity:.16}}
+        @keyframes ${id}-cd{0%{opacity:0;transform:translate(0,11px)}15%{opacity:1}80%{opacity:1;transform:translate(0,3px)}100%{opacity:0;transform:translate(0,1px)}}`,
+    },
+    {
+      id: 'stretch', name: 'Stretching', when: 'A break from writing: Clawd stays at the laptop, reaches both arms up, sways side to side and settles back in.',
+      sprite: { over: LAPTOP },
+      css: id => `${blink(id, 4)}
+        $ .armL{animation:${id}-al ${d(4)} ease-in-out infinite} $ .armR{animation:${id}-ar ${d(4)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(4)} ease-in-out infinite}
+        $ .jumper{animation:${id}-jp ${d(4)} ease-in-out infinite}
+        $ .tilt{animation:${id}-tl ${d(4)} ease-in-out infinite}
+        $ .eyes-n{animation:${id}-en ${d(4)} steps(1) infinite} $ .eyes-c{animation:${id}-ec ${d(4)} steps(1) infinite}
+        @keyframes ${id}-al{0%,8%,62%,100%{transform:translate(0,0)}22%,48%{transform:translate(1px,-4px)}35%{transform:translate(1px,-5px)}}
+        @keyframes ${id}-ar{0%,8%,62%,100%{transform:translate(0,0)}22%,48%{transform:translate(-1px,-4px)}35%{transform:translate(-1px,-5px)}}
+        @keyframes ${id}-sq{0%,8%,62%,100%{transform:scale(1,1)}22%,48%{transform:scale(.94,1.1)}35%{transform:scale(.92,1.13)}}
+        @keyframes ${id}-jp{0%,8%,62%,100%{transform:translateY(0)}22%,48%{transform:translateY(-1px)}}
+        @keyframes ${id}-tl{0%,60%,94%,100%{transform:rotate(0)}70%{transform:rotate(-6deg)}82%{transform:rotate(6deg)}}
+        @keyframes ${id}-en{0%,17.9%{opacity:1}18%,55.9%{opacity:0}56%,100%{opacity:1}}
+        @keyframes ${id}-ec{0%,17.9%{opacity:0}18%,55.9%{opacity:1}56%,100%{opacity:0}}`,
+    },
+    {
+      id: 'hop', name: 'Hopping', when: 'A request has gone out and Claude is waiting on the model.',
+      sprite: { fx: puff(9, 17, 'dust pl') + puff(21, 17, 'dust pr') },
+      css: id => `${blink(id, 2.8)}
+        $ .jumper{animation:${id}-j ${d(1.4)} infinite}
+        $ .squash{animation:${id}-sq ${d(1.4)} infinite}
+        $ .leg{animation:${id}-lg ${d(1.4)} infinite}
+        $ .armL,$ .armR{animation:${id}-ar ${d(1.4)} infinite}
+        $ .shadowg{animation:${id}-sh ${d(1.4)} infinite}
+        $ .dust{opacity:0;animation:${id}-ds ${d(1.4)} ease-out infinite} $ .pl{--dx:-3px} $ .pr{--dx:3px}
+        @keyframes ${id}-j{0%,15%{transform:translateY(0);animation-timing-function:cubic-bezier(.2,.7,.4,1)}42%{transform:translateY(-7px);animation-timing-function:cubic-bezier(.6,0,.8,.4)}68%,100%{transform:translateY(0)}}
+        @keyframes ${id}-sq{0%{transform:scale(1,1)}12%{transform:scale(1.16,.8)}22%{transform:scale(.9,1.14)}42%,64%{transform:scale(1,1)}72%{transform:scale(1.18,.78)}84%{transform:scale(.97,1.04)}100%{transform:scale(1,1)}}
+        @keyframes ${id}-lg{0%,18%,70%,100%{transform:scaleY(1)}26%,62%{transform:scaleY(.5)}}
+        @keyframes ${id}-ar{0%,18%,68%,100%{transform:translateY(0)}30%,58%{transform:translateY(-2px)}}
+        @keyframes ${id}-sh{0%,15%,68%,100%{transform:scaleX(1);opacity:1}42%{transform:scaleX(.5);opacity:.45}}
+        @keyframes ${id}-ds{0%,68%{opacity:0;transform:translateX(0) scale(.5)}72%{opacity:.9}95%,100%{opacity:0;transform:translateX(var(--dx)) scale(1.4)}}`,
+    },
+    {
+      id: 'stroll', name: 'Strolling', wide: true, when: 'Volta: pacing back and forth with its hands clasped behind its back, eyes on the ground, deep in thought.',
+      sprite: {
+        fx: [0, 1, 2].map(i => r(18 + i * 2, 6, 1, 1, CLAY, ` class="hm h${i}"`)).join(''),
+      },
+      css: id => `${blink(id, 4.2)}
+        $ .mover{animation:${id}-mv ${d(9)} ease-in-out infinite}
+        $ .flip{animation:${id}-fl ${d(9)} infinite}
+        $ .jumper{animation:${id}-bn ${d(0.9)} ease-in-out infinite}
+        $ .leg{animation:${id}-lg ${d(0.9)} steps(1) infinite} $ .l2,$ .l4{animation-delay:${d(0.45)}}
+        $ .look{transform:translate(1px,1px)}
+        $ .tilt{animation:${id}-tl ${d(9)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(9)} ease-in-out infinite}
+        $ .armL{animation:${id}-hb ${d(0.9)} ease-in-out infinite}
+        $ .armR{animation:${id}-hf ${d(0.9)} ease-in-out infinite}
+        $ .hm{opacity:0;animation:${id}-hm ${d(9)} infinite} $ .h1{animation-name:${id}-hm1} $ .h2{animation-name:${id}-hm2}
+        @keyframes ${id}-mv{0%,100%{transform:translateX(-10px)}40%,52%{transform:translateX(10px)}92%{transform:translateX(-10px)}}
+        @keyframes ${id}-fl{0%,45.9%{transform:scaleX(1)}46%,95.9%{transform:scaleX(-1)}96%,100%{transform:scaleX(1)}}
+        @keyframes ${id}-bn{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-lg{0%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
+        @keyframes ${id}-tl{0%,38%,54%,100%{transform:rotate(4deg)}42%,50%{transform:rotate(-2deg)}}
+        @keyframes ${id}-hb{0%,100%{transform:translate(0,1px)}50%{transform:translate(-1px,1px)}}
+        @keyframes ${id}-hf{0%,100%{transform:translate(-12px,0)}50%{transform:translate(-13px,0)}}
+        @keyframes ${id}-sq{0%,40%,48%,100%{transform:scale(1,1)}43%{transform:scale(.97,1.06)}46%{transform:scale(1.05,.93)}}
+        @keyframes ${id}-hm{0%,41%{opacity:0}42%,51%{opacity:1}52%,100%{opacity:0}}
+        @keyframes ${id}-hm1{0%,43%{opacity:0}44%,51%{opacity:1}52%,100%{opacity:0}}
+        @keyframes ${id}-hm2{0%,45%{opacity:0}46%,51%{opacity:1}52%,100%{opacity:0}}`,
+    },
+    {
+      id: 'sleeping', name: 'Sleeping', when: 'The session has been idle for a long while.',
+      sprite: { fx: z(23, 8, 3, 'zz z0') + z(25, 3, 4, 'zz z1'), front: r(15, 14, 1, 1, BLUE, ' class="bub" opacity=".8"') },
+      css: id => `${eyes('c')}
+        $ .jumper{transform:translateY(1px)}
+        $ .leg{transform:scaleY(.5)}
+        $ .tilt{transform:rotate(-4deg)}
+        $ .squash{animation:${id}-br ${d(3.2)} ease-in-out infinite}
+        $ .shadowg{animation:${id}-sh ${d(3.2)} ease-in-out infinite}
+        $ .bub{transform-origin:50% 0%;animation:${id}-bu ${d(3.2)} ease-in-out infinite}
+        $ .zz{opacity:0;animation:${id}-z ${d(3.2)} ease-out infinite} $ .z1{animation-delay:${d(1.6)}}
+        @keyframes ${id}-br{0%,100%{transform:scale(1,1)}50%{transform:scale(1.04,1.08)}}
+        @keyframes ${id}-sh{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.06)}}
+        @keyframes ${id}-bu{0%{transform:scale(0);opacity:.8}50%{transform:scale(2.6);opacity:.8}54%{transform:scale(3.2);opacity:0}100%{transform:scale(0);opacity:0}}
+        @keyframes ${id}-z{0%{opacity:0;transform:translate(0,2px) scale(.6)}20%{opacity:1}50%{transform:translate(2px,-2px) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(0,-5px) scale(1.1)}}`,
+    },
+    {
+      id: 'celebrate', name: 'Celebrating', when: 'A background task finished successfully.',
+      sprite: {
+        fx: [[-12, -7, '#F2C14E', 0], [-8, -10, '#4FB3A9', 0.04], [-3, -11, CLAY, 0.02], [3, -11, '#8E7CC3', 0.06], [8, -10, '#F2C14E', 0.03], [12, -7, '#4FB3A9', 0.05],
+          [-14, -3, '#8E7CC3', 0.08], [14, -3, CLAY, 0.07], [-6, -8, '#E5484D', 0.1], [6, -8, '#4FB3A9', 0.09]]
+          .map(([dx, dy, c, dl]) => r(16, 9, 1, 1, c, ` class="cf" style="--dx:${dx}px;--dy:${dy}px;animation-delay:${d(dl)}"`)).join(''),
+      },
+      css: id => `${eyes('h')}
+        $ .jumper{animation:${id}-j ${d(1.6)} infinite}
+        $ .tilt{transform-origin:50% 50%;animation:${id}-sp ${d(1.6)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(1.6)} infinite}
+        $ .armL,$ .armR{animation:${id}-fl ${d(0.3)} ease-in-out infinite}
+        $ .shadowg{animation:${id}-sh ${d(1.6)} infinite}
+        $ .cf{transform-origin:50% 50%;opacity:0;animation:${id}-cf ${d(1.6)} ease-out infinite}
+        @keyframes ${id}-j{0%,10%{transform:translateY(0);animation-timing-function:cubic-bezier(.2,.7,.4,1)}38%,48%{transform:translateY(-8px);animation-timing-function:cubic-bezier(.6,0,.8,.4)}74%,100%{transform:translateY(0)}}
+        @keyframes ${id}-sp{0%,22%{transform:rotate(0)}58%,100%{transform:rotate(360deg)}}
+        @keyframes ${id}-sq{0%{transform:scale(1,1)}8%{transform:scale(1.15,.82)}16%{transform:scale(.92,1.1)}30%,72%{transform:scale(1,1)}78%{transform:scale(1.16,.82)}88%,100%{transform:scale(1,1)}}
+        @keyframes ${id}-fl{0%,100%{transform:translateY(-3px)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-sh{0%,10%,74%,100%{transform:scaleX(1);opacity:1}43%{transform:scaleX(.45);opacity:.4}}
+        @keyframes ${id}-cf{0%,8%{opacity:0;transform:translate(0,0) rotate(0)}12%{opacity:1}42%{opacity:1;transform:translate(var(--dx),var(--dy)) rotate(200deg)}100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 12px)) rotate(480deg)}}`,
+    },
+    {
+      id: 'error', name: 'Alarmed', when: 'A task failed or a command exited with an error.',
+      sprite: {
+        fx: `<g class="bang">${r(25, 0, 2, 5, RED)}${r(25, 6, 2, 2, RED)}</g>${r(23, 10, 1, 2, BLUE, ' class="drop"')}`,
+      },
+      css: id => `${eyes('w')}
+        $ .jumper{animation:${id}-j ${d(2.2)} infinite}
+        $ .squash{animation:${id}-sq ${d(2.2)} infinite}
+        $ .mover{animation:${id}-sh ${d(2.2)} infinite}
+        $ .armL,$ .armR{animation:${id}-fl ${d(0.18)} steps(1) infinite} $ .armR{animation-delay:${d(0.09)}}
+        $ .leg{animation:${id}-lg ${d(0.18)} steps(1) infinite} $ .l2,$ .l4{animation-delay:${d(0.09)}}
+        $ .bang{transform-origin:50% 100%;animation:${id}-bg ${d(2.2)} infinite}
+        $ .drop{animation:${id}-dr ${d(2.2)} ease-in infinite}
+        @keyframes ${id}-j{0%{transform:translateY(0)}5%{transform:translateY(-5px)}12%,100%{transform:translateY(0)}}
+        @keyframes ${id}-sq{0%{transform:scale(1,1)}4%{transform:scale(.88,1.18)}12%{transform:scale(1.14,.84)}18%,100%{transform:scale(1,1)}}
+        @keyframes ${id}-sh{0%,14%,46%,100%{transform:translateX(0)}17%,23%,29%,35%,41%{transform:translateX(-1px)}20%,26%,32%,38%,44%{transform:translateX(1px)}}
+        @keyframes ${id}-fl{0%{transform:translateY(-3px)}50%{transform:translateY(-1px)}}
+        @keyframes ${id}-lg{0%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
+        @keyframes ${id}-bg{0%{opacity:0;transform:scale(.2)}6%{opacity:1;transform:scale(1.4)}12%{transform:scale(1)}80%{opacity:1;transform:scale(1)}90%,100%{opacity:0;transform:scale(1)}}
+        @keyframes ${id}-dr{0%,18%{opacity:0;transform:translate(0,0)}24%{opacity:1}62%{opacity:1;transform:translate(1px,6px)}70%,100%{opacity:0;transform:translate(1px,7px)}}`,
+    },
+    {
+      id: 'searching', name: 'Searching', when: 'Claude is searching files or the web. It stops, lifts the glass to its eye and takes a close look.',
+      sprite: {
+        front: `<g class="mag">${r(24, 9, 3, 1, INK)}${r(23, 10, 1, 3, INK)}${r(27, 10, 1, 3, INK)}${r(24, 13, 3, 1, INK)}${r(24, 10, 3, 3, BLUE, ' opacity=".55"')}
+          <g class="bigeye">${r(24, 10, 3, 3, INK)}${r(24, 10, 1, 1, '#FFF')}${r(25, 11, 1, 1, '#3A3836')}</g>
+          ${r(24, 10, 1, 1, '#FFF', ' class="glint"')}${r(22, 13, 1, 1, INK)}${r(21, 14, 1, 1, INK)}</g>`,
+      },
+      css: id => `${blink(id, 3.3)}
+        $ .mover{animation:${id}-mv ${d(5)} ease-in-out infinite}
+        $ .leg{animation:${id}-lg ${d(5)} infinite}
+        $ .tilt{animation:${id}-ln ${d(5)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(5)} ease-in-out infinite}
+        $ .armR{animation:${id}-ar ${d(5)} ease-in-out infinite}
+        $ .mag{animation:${id}-mg ${d(5)} ease-in-out infinite}
+        $ .bigeye{transform-origin:50% 50%;animation:${id}-be ${d(5)} infinite}
+        $ .glint{animation:${id}-gl ${d(1.2)} steps(1) infinite}
+        $ .look{animation:${id}-lk ${d(5)} ease-in-out infinite}
+        $ .eyes-n{animation:${id}-en ${d(5)} steps(1) infinite} $ .eyes-s{animation:${id}-es ${d(5)} steps(1) infinite}
+        @keyframes ${id}-mv{0%,100%{transform:translateX(-7px)}32%,66%{transform:translateX(1px)}96%{transform:translateX(-7px)}}
+        @keyframes ${id}-lg{0%,4%,8%,12%,16%,20%,24%,28%,68%,72%,76%,80%,84%,88%,92%{transform:scaleY(1)}2%,6%,10%,14%,18%,22%,26%,30%,70%,74%,78%,82%,86%,90%,94%{transform:scaleY(.5)}32%,66%,96%,100%{transform:scaleY(1)}}
+        @keyframes ${id}-ln{0%,30%,68%,100%{transform:rotate(0)}36%,62%{transform:rotate(5deg)}}
+        @keyframes ${id}-sq{0%,30%,68%,100%{transform:scale(1,1)}36%{transform:scale(1.04,.95)}44%,58%{transform:scale(.98,1.04)}64%{transform:scale(1,1)}}
+        @keyframes ${id}-ar{0%,36%,64%,100%{transform:translate(-1px,-1px)}42%,58%{transform:translate(-4px,-1px)}}
+        @keyframes ${id}-mg{0%,100%{transform:translate(0,0)}8%,24%{transform:translate(0,-1px)}16%{transform:translate(0,0)}36%{transform:translate(0,0)}42%,58%{transform:translate(-7px,1px)}64%{transform:translate(0,0)}76%,92%{transform:translate(0,-1px)}84%{transform:translate(0,0)}}
+        @keyframes ${id}-be{0%,41.9%{opacity:0;transform:scale(.6)}42%{opacity:1;transform:scale(.6)}46%{transform:scale(1.25)}50%{transform:scale(1.05)}54%{transform:scale(1.2)}58%{opacity:1;transform:scale(1)}58.1%,100%{opacity:0}}
+        @keyframes ${id}-gl{0%{opacity:1}50%{opacity:0}}
+        @keyframes ${id}-lk{0%,30%,68%,100%{transform:translateX(1px)}36%,62%{transform:translate(1px,1px)}}
+        @keyframes ${id}-en{0%,41.9%{opacity:1}42%,57.9%{opacity:0}58%,100%{opacity:1}}
+        @keyframes ${id}-es{0%,41.9%{opacity:0}42%,57.9%{opacity:1}58%,100%{opacity:0}}`,
+    },
+    {
+      id: 'wave', name: 'Waving', when: 'A new session starts.',
+      sprite: { fx: sparkle(27, 6, 'spk') },
+      css: id => `${blink(id, 3)}
+        $ .armR{transform-origin:0% 100%;animation:${id}-wv ${d(3)} ease-in-out infinite}
+        $ .tilt{animation:${id}-tl ${d(3)} ease-in-out infinite}
+        $ .jumper{animation:${id}-hp ${d(3)} infinite}
+        $ .eyes-n{animation:${id}-en ${d(3)} steps(1) infinite} $ .eyes-h{animation:${id}-eh ${d(3)} steps(1) infinite}
+        $ .spk{transform-origin:50% 50%;opacity:0;animation:${id}-sp ${d(3)} ease-out infinite}
+        @keyframes ${id}-wv{0%,52%,100%{transform:translate(0,0) rotate(0)}8%{transform:translate(0,-4px) rotate(-25deg)}16%,32%{transform:translate(0,-4px) rotate(20deg)}24%,40%{transform:translate(0,-4px) rotate(-25deg)}46%{transform:translate(0,-4px) rotate(0)}}
+        @keyframes ${id}-tl{0%,52%,100%{transform:rotate(0)}8%,46%{transform:rotate(-5deg)}}
+        @keyframes ${id}-hp{0%,54%,66%,100%{transform:translateY(0)}60%{transform:translateY(-2px)}}
+        @keyframes ${id}-en{0%,4.9%{opacity:1}5%,49.9%{opacity:0}50%,100%{opacity:1}}
+        @keyframes ${id}-eh{0%,4.9%{opacity:0}5%,49.9%{opacity:1}50%,100%{opacity:0}}
+        @keyframes ${id}-sp{0%,8%{opacity:0;transform:scale(0) rotate(0)}18%{opacity:1;transform:scale(1.1) rotate(45deg)}30%{opacity:1;transform:scale(.8) rotate(90deg)}42%,100%{opacity:0;transform:scale(0) rotate(135deg)}}`,
+    },
+    {
+      id: 'dance', name: 'Dancing', when: 'The tests passed.',
+      sprite: { fx: note(25, 4, 'nt n0', '--dx:2px') + note(4, 5, 'nt n1', '--dx:-2px') },
+      css: id => `${eyes('h')}
+        $ .tilt{animation:${id}-r ${d(1)} ease-in-out infinite alternate}
+        $ .jumper{animation:${id}-b ${d(0.5)} ease-in-out infinite}
+        $ .squash{animation:${id}-sq ${d(0.5)} ease-in-out infinite}
+        $ .armL{animation:${id}-a ${d(1)} steps(1) infinite} $ .armR{animation:${id}-a ${d(1)} steps(1) infinite;animation-delay:${d(0.5)}}
+        $ .leg{animation:${id}-lg ${d(0.5)} steps(1) infinite} $ .l2,$ .l3{animation-delay:${d(0.25)}}
+        $ .shadowg{animation:${id}-sh ${d(0.5)} ease-in-out infinite}
+        $ .nt{opacity:0;animation:${id}-nt ${d(2)} ease-out infinite} $ .n1{animation-delay:${d(1)}}
+        @keyframes ${id}-r{from{transform:rotate(-10deg)}to{transform:rotate(10deg)}}
+        @keyframes ${id}-b{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+        @keyframes ${id}-sq{0%,100%{transform:scale(1.06,.92)}50%{transform:scale(.97,1.05)}}
+        @keyframes ${id}-a{0%{transform:translateY(-3px)}50%{transform:translateY(0)}}
+        @keyframes ${id}-lg{0%{transform:scaleY(1)}50%{transform:scaleY(.5)}}
+        @keyframes ${id}-sh{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.8)}}
+        @keyframes ${id}-nt{0%{opacity:0;transform:translate(0,3px)}15%{opacity:1}70%{opacity:1;transform:translate(var(--dx),-3px)}100%{opacity:0;transform:translate(0,-6px)}}`,
+    },
+  ];
+
+  const svgFor = a => {
+    const scope = `#clawd-${a.id}`;
+    const css = (base + '\n' + a.css(a.id)).replace(/\$/g, scope).replace(/\s+/g, ' ');
+    return `<svg id="clawd-${a.id}" xmlns="http://www.w3.org/2000/svg" viewBox="${a.wide ? '-8 0 48 22' : '0 0 32 22'}" shape-rendering="crispEdges" role="img" aria-label="Clawd ${a.name.toLowerCase()}"><style>${css}</style>${sprite(a.sprite)}</svg>`.replace(/\s{2,}/g, ' ');
+  };
+
+  const sheet = document.getElementById('sheet');
+  for (const a of ANIMS) {
+    const markup = svgFor(a);
+    const cell = document.createElement('article');
+    cell.className = a.wide ? 'cell wide' : 'cell';
+    cell.innerHTML = `
+      <div class="stage">${a.tag ? `<span class="tag">${a.tag}</span>` : ''}${markup}</div>
+      <div class="meta">
+        <div class="name-row"><h2>${a.name}</h2><button type="button" class="copy" id="copy-${a.id}">Copy SVG</button></div>
+        <p class="when">${a.when}</p>
+      </div>`;
+    const btn = cell.querySelector('.copy');
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(markup);
+        btn.textContent = 'Copied';
+        setTimeout(() => (btn.textContent = 'Copy SVG'), 1400);
+      } catch {
+        let ta = cell.querySelector('textarea');
+        if (!ta) {
+          ta = document.createElement('textarea');
+          ta.id = `code-${a.id}`;
+          ta.readOnly = true;
+          ta.value = markup;
+          ta.setAttribute('aria-label', `${a.name} SVG code`);
+          cell.querySelector('.meta').append(ta);
+        }
+        ta.focus();
+        ta.select();
+        btn.textContent = 'Select and copy';
+      }
+    });
+    sheet.append(cell);
+  }
+
+  const root = document.documentElement;
+  const speed = document.getElementById('speed');
+  const out = document.getElementById('speed-out');
+  speed.addEventListener('input', () => {
+    root.style.setProperty('--speed', speed.value);
+    out.textContent = `${Number(speed.value)}×`;
+  });
+
+  const sizeButtons = document.querySelectorAll('[data-size]');
+  sizeButtons.forEach(b => b.addEventListener('click', () => {
+    sizeButtons.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    root.style.setProperty('--sprite-w', `${b.dataset.size}px`);
+  }));
+
+  const pause = document.getElementById('pause');
+  const setPaused = p => {
+    document.body.classList.toggle('paused', p);
+    pause.setAttribute('aria-pressed', String(p));
+    pause.textContent = p ? 'Play all' : 'Pause all';
+  };
+  pause.addEventListener('click', () => setPaused(!document.body.classList.contains('paused')));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) setPaused(true);
+})();
+</script>

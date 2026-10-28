@@ -1,0 +1,100 @@
+// Builds hooks/sprites.ts from the animation sheet (sheet/clawd-animations.html).
+//
+//   node scripts/build-sprites.mjs
+//
+// Every animation the plugin uses gets three kinds of frame:
+//   <id>      the loop, entered with a short squash-and-settle while its props pop in
+//   <id>-out  the exit: Clawd eases back to a plain standing pose while its props leave
+//   <id>~     the loop with no entrance, for a switch between two animations that
+//             share a prop (writing and stretch keep the laptop in place)
+// A switch from A to B plays A-out, then B, so every pair moves through the same
+// standing pose instead of cutting from one motion straight into another.
+
+import { readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const html = readFileSync(join(root, 'sheet/clawd-animations.html'), 'utf8')
+
+// The sheet's own definitions: everything in its script before it touches the page.
+const script = html.slice(html.indexOf('(() => {') + '(() => {'.length, html.indexOf('const sheet ='))
+const sheet = new Function(`${script}; return { ANIMS, base, blink, sprite, d };`)()
+const { ANIMS, base, blink, sprite } = sheet
+
+const USED = ['idle', 'listening', 'thinking', 'writing', 'stretch', 'hop', 'sleeping', 'searching', 'wave']
+const SHARED = ['writing', 'stretch']
+
+// What each animation takes away when it ends, and where it goes.
+// `keep` picks the props that stay visible as they leave; `from` is extra CSS for an
+// exit that starts from a pose other than standing.
+const OUT = {
+  idle: {},
+  hop: {},
+  wave: {},
+  listening: { keep: a => ({ front: a.sprite.front }), to: 'translateY(-3px)', from: closedEyes },
+  thinking: { keep: a => ({ fx: a.sprite.fx }), to: 'translate(2px,-2px) scale(.5)' },
+  writing: { keep: a => ({ over: a.sprite.over }), to: 'translateY(2px)' },
+  stretch: { keep: a => ({ over: a.sprite.over }), to: 'translateY(2px)' },
+  searching: { keep: a => ({ front: a.sprite.front }), to: 'translate(1px,3px) rotate(20deg)', from: () => '$ .bigeye{opacity:0}' },
+  sleeping: { from: id => `${closedEyes(id)}
+    $ .jumper{animation:${id}-wj .7s ease-out both} $ .leg{animation:${id}-wl .7s ease-out both} $ .tilt{animation:${id}-wt .7s ease-out both}
+    @keyframes ${id}-wj{from{transform:translateY(1px)}to{transform:none}}
+    @keyframes ${id}-wl{from{transform:scaleY(.5)}to{transform:none}}
+    @keyframes ${id}-wt{from{transform:rotate(-4deg)}to{transform:none}}` },
+}
+
+// Eyes that start shut and open halfway through the exit.
+function closedEyes(id) {
+  return `$ .eyes-n{animation:${id}-on .7s steps(1) both} $ .eyes-c{animation:${id}-oc .7s steps(1) both}
+    @keyframes ${id}-on{0%{opacity:0}50%{opacity:1}} @keyframes ${id}-oc{0%{opacity:1}50%{opacity:0}}`
+}
+
+const ENTER = id => `$ .enter{transform-origin:50% 100%;animation:${id}-in .4s ease-out both}
+  $ .pin{transform-origin:50% 50%;animation:${id}-pin .45s ease-out both}
+  @keyframes ${id}-in{0%{transform:scale(1.08,.88)}45%{transform:scale(.96,1.05)}100%{transform:none}}
+  @keyframes ${id}-pin{0%{opacity:0;transform:scale(.5)}100%{opacity:1;transform:none}}`
+
+const LEAVE = (id, to) => `$ .prop{transform-origin:50% 50%;animation:${id}-lv .5s ease-in both}
+  $ .squash{animation:${id}-st .6s ease-out both}
+  @keyframes ${id}-lv{0%{opacity:1;transform:none}100%{opacity:0;transform:${to}}}
+  @keyframes ${id}-st{0%{transform:scale(1.05,.94)}55%{transform:scale(.98,1.03)}100%{transform:none}}`
+
+const wrap = (parts, cls) =>
+  Object.fromEntries(Object.entries(parts).filter(([, v]) => v).map(([k, v]) => [k, `<g class="${cls}">${v}</g>`]))
+
+function svg(key, name, css, body) {
+  const scope = `#clawd-${key.replace('~', '-on')}`
+  const style = `${base}\n${css}`.replace(/\$/g, scope).replace(/\s+/g, ' ')
+  return `<svg id="${scope.slice(1)}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 22" shape-rendering="crispEdges" role="img" aria-label="Clawd ${name}"><style>${style}</style>${body}</svg>`
+    .replace(/\s{2,}/g, ' ')
+}
+
+const frames = {}
+for (const id of USED) {
+  const a = ANIMS.find(x => x.id === id)
+  if (!a) throw new Error(`the sheet has no animation "${id}"`)
+  const name = a.name.toLowerCase()
+  const props = a.sprite ?? {}
+
+  frames[id] = svg(id, name, `${a.css(id)}\n${ENTER(id)}`, `<g class="enter">${sprite(wrap(props, 'pin'))}</g>`)
+  if (SHARED.includes(id)) frames[`${id}~`] = svg(`${id}~`, name, a.css(`${id}-on`), sprite(props))
+
+  const out = OUT[id]
+  const kept = out.keep ? wrap(out.keep(a), 'prop') : {}
+  const oid = `${id}-out`
+  frames[oid] = svg(oid, name, `${blink(oid, 4)}\n${LEAVE(oid, out.to ?? 'none')}\n${out.from ? out.from(oid) : ''}`, sprite(kept))
+}
+
+const lines = Object.entries(frames).map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)},`)
+writeFileSync(
+  join(root, 'hooks/sprites.ts'),
+  `// Generated by scripts/build-sprites.mjs from sheet/clawd-animations.html. Do not edit by hand.
+// Each value is a standalone animated SVG, its CSS scoped to its own id.
+
+export const SPRITES: Record<string, string> = {
+${lines.join('\n')}
+}
+`,
+)
+console.log(`wrote ${Object.keys(frames).length} frames: ${Object.keys(frames).join(' ')}`)

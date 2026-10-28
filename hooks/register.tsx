@@ -1,13 +1,13 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { AnimId, Scene, WaitItem } from '../types'
+import type { AnimId, Frame, Scene, WaitItem } from '../types'
 import { SPRITES } from './sprites'
 
 const waiting = atom({ plugin: 'clawd-watch', key: 'waiting' } as const, [] as WaitItem[])
 // When Claude last went quiet with work still running, and how that quiet stretch opens.
 const scene = atom({ plugin: 'clawd-watch', key: 'scene' } as const, null as Scene | null)
-const shown = atom({ plugin: 'clawd-watch', key: 'shown' } as const, 'listening' as AnimId)
+const shown = atom({ plugin: 'clawd-watch', key: 'shown' } as const, 'listening' as Frame)
 
 const CLAY = '#D97757'
 
@@ -15,7 +15,10 @@ const CLAY = '#D97757'
 const OPENER_MS = 2500 // wave (or hop, if a task just finished) when the wait begins
 const SLEEP_AFTER_MS = 3 * 60 * 1000 // a long wait sends Clawd to sleep
 const BREAK_EVERY_MS = 30 * 1000 // now and then, a short idle break
-const BREAK_FOR_MS = 4000
+const BREAK_FOR_MS = 4000 // one cycle of idle or stretch
+
+// Animations that share a prop switch straight to each other, the prop staying put.
+const SHARED: readonly AnimId[] = ['writing', 'stretch']
 
 const SEARCH = /\b(grep|rg|find|search\w*|look(ing)? for|locate|explore|scan)\b/i
 const WRITE = /\b(writ\w*|implement\w*|edit\w*|fix\w*|refactor\w*|creat\w*|add\w*|updat\w*|build\w*|draft\w*)\b/i
@@ -32,9 +35,22 @@ export function taskAnimation(item: WaitItem | undefined): AnimId {
 export function pickAnimation(items: readonly WaitItem[], elapsed: number, opener: Scene['opener']): AnimId {
   if (elapsed < OPENER_MS) return opener
   if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
-  if (elapsed >= BREAK_EVERY_MS && elapsed % BREAK_EVERY_MS < BREAK_FOR_MS) return 'idle'
   // The newest task leads: it is the one Claude most likely stopped to wait for.
-  return taskAnimation(items[items.length - 1])
+  const task = taskAnimation(items[items.length - 1])
+  // A break from writing is a stretch at the laptop; any other break is plain idle.
+  if (elapsed >= BREAK_EVERY_MS && elapsed % BREAK_EVERY_MS < BREAK_FOR_MS) return task === 'writing' ? 'stretch' : 'idle'
+  return task
+}
+
+// The frame to show next on the way from `current` to `target`. A switch never cuts
+// from one loop into another: the current animation plays its exit first (one tick),
+// then the target comes in with its entrance.
+export function nextFrame(current: Frame, target: AnimId): Frame {
+  if (current.endsWith('-out')) return target
+  const playing = current.replace('~', '') as AnimId
+  if (playing === target) return current
+  if (SHARED.includes(playing) && SHARED.includes(target)) return `${target}~`
+  return `${playing}-out`
 }
 
 const KIND: Record<string, string> = { shell: 'command', subagent: 'agent', monitor: 'monitor', workflow: 'workflow' }
@@ -122,9 +138,11 @@ export const register: Register = on => {
       const current = await read($, scene)
       const items = await read($, waiting)
       if (!current || items.length === 0) return
-      const anim = pickAnimation(items, (await $.clock.now()) - current.since, current.opener)
+      const target = pickAnimation(items, (await $.clock.now()) - current.since, current.opener)
+      const now = await read($, shown)
+      const frame = nextFrame(now, target)
       // Write only on a change, so the drawing is not redrawn (and restarted) every second.
-      if (anim !== (await read($, shown))) await update($, shown, () => anim)
+      if (frame !== now) await update($, shown, () => frame)
     })
     return next(e)
   })
@@ -174,11 +192,11 @@ export const register: Register = on => {
       return <Text color={CLAY}>[o_o] {text}…</Text>
     }
 
-    const anim = await read($, shown)
+    const frame = await read($, shown)
     const { Box, Text, Svg } = $.ui.resolve(e)
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Svg source={SPRITES[anim]} alt={`Clawd: ${text}`} width={80} height={55} isInteractive />
+        <Svg source={SPRITES[frame] ?? SPRITES.listening} alt={`Clawd: ${text}`} width={80} height={55} isInteractive />
         <Text color={CLAY} weight="medium">
           {text}…
         </Text>
