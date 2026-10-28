@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, finishedTasks, nextFrame, pickAnimation, taskAnimation } from './register'
+import { describeWaiting, finishedTasks, inPhase, nextFrame, pickAnimation, taskAnimation } from './register'
+import { SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'npm test', hint: 'Run tests npm test' }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src' }
@@ -51,4 +52,9 @@ test('spots every finished task in a turn', () => {
   expect(finishedTasks(note('toolu_1', 'completed'))).toEqual(['toolu_1'])
   expect(finishedTasks(note('toolu_1', 'completed') + note('toolu_2', 'failed'))).toEqual(['toolu_1', 'toolu_2'])
   expect(finishedTasks(note('toolu_3', 'running'))).toEqual([])
+})
+
+test('the laptop glow picks up where the clock has it', () => {
+  for (const f of ['writing', 'writing~', 'stretch', 'stretch~']) expect(inPhase(SPRITES[f] ?? '', 2300)).toContain('animation-delay:-100ms')
+  expect(inPhase(SPRITES.listening ?? '', 2300)).toBe(SPRITES.listening ?? '')
 })

@@ -242,6 +242,10 @@
 
   const LAPTOP = `<g class="laptop">${r(11, 14, 10, 3, '#8A939C')}${r(11, 14, 10, 1, '#A9B2BA')}${r(15, 15, 2, 1, '#D5DCE2', ' class="logo"')}${r(8, 17, 16, 1, '#6B747D')}${r(8, 17, 16, 1, '#000', ' opacity=".15"')}</g>`;
 
+  const GLOW = r(11, 10, 10, 4, BLUE, ' class="glow" opacity="0"');
+  const glow = id => `$ .glow{animation:${id}-gw ${d(1.1)} steps(2) infinite}
+    @keyframes ${id}-gw{0%{opacity:.12}50%{opacity:.24}100%{opacity:.16}}`;
+
   const ANIMS = [
     {
       id: 'idle', name: 'Idle', when: 'Nothing is running. Clawd breathes, blinks, glances around and scratches its head.',
@@ -346,7 +350,7 @@
             : r(x + 1, 0, 1, 1, CLAY) + r(x + 1, 1, 1, 1, CLAY) + r(x, 2, 1, 1, CLAY);
           return `<g class="code k${i}" transform="translate(0 11)">${g}</g>`;
         }).join(''),
-        front: r(11, 10, 10, 4, BLUE, ' class="glow" opacity="0"'),
+        front: GLOW,
         over: LAPTOP,
       },
       css: id => `${blink(id, 3.4)}
@@ -354,20 +358,20 @@
         $ .jumper{animation:${id}-bn ${d(0.44)} ease-in-out infinite}
         $ .look{animation:${id}-lk ${d(5)} ease-in-out infinite}
         $ .tilt{animation:${id}-tl ${d(5)} ease-in-out infinite}
-        $ .glow{animation:${id}-gw ${d(1.1)} steps(2) infinite}
+        ${glow(id)}
         $ .code{opacity:0;animation:${id}-cd ${d(1.8)} ease-out infinite} $ .k1{animation-delay:${d(0.6)}} $ .k2{animation-delay:${d(1.2)}}
         @keyframes ${id}-ty{0%{transform:translate(0,0)}50%{transform:translate(1px,1px)}}
         @keyframes ${id}-ty2{0%{transform:translate(0,0)}50%{transform:translate(-1px,1px)}}
         @keyframes ${id}-bn{0%,100%{transform:translateY(0)}50%{transform:translateY(-.5px)}}
         @keyframes ${id}-lk{0%,68%,86%,100%{transform:translateY(0)}72%,82%{transform:translate(1px,-1px)}}
         @keyframes ${id}-tl{0%,68%,86%,100%{transform:rotate(0)}72%,82%{transform:rotate(-3deg)}}
-        @keyframes ${id}-gw{0%{opacity:.12}50%{opacity:.24}100%{opacity:.16}}
         @keyframes ${id}-cd{0%{opacity:0;transform:translate(0,11px)}15%{opacity:1}80%{opacity:1;transform:translate(0,3px)}100%{opacity:0;transform:translate(0,1px)}}`,
     },
     {
       id: 'stretch', name: 'Stretching', when: 'A break from writing: Clawd stays at the laptop, reaches both arms up, sways side to side and settles back in.',
-      sprite: { over: LAPTOP },
+      sprite: { front: GLOW, over: LAPTOP },
       css: id => `${blink(id, 4)}
+        ${glow(id)}
         $ .armL{animation:${id}-al ${d(4)} ease-in-out infinite} $ .armR{animation:${id}-ar ${d(4)} ease-in-out infinite}
         $ .squash{animation:${id}-sq ${d(4)} ease-in-out infinite}
         $ .jumper{animation:${id}-jp ${d(4)} ease-in-out infinite}

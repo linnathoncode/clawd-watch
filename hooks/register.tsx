@@ -17,6 +17,15 @@ const SLEEP_AFTER_MS = 3 * 60 * 1000 // a long wait sends Clawd to sleep
 const BREAK_EVERY_MS = 30 * 1000 // now and then, a short idle break
 const BREAK_FOR_MS = 4000 // one cycle of idle or stretch
 
+// The laptop screen's flicker loop, in ms (the sheet's glow). Each frame at the laptop
+// starts the flicker where the clock has it, so a switch keeps the light steady.
+const GLOW_MS = 1100
+
+export function inPhase(svg: string, now: number): string {
+  if (!svg.includes('class="glow"')) return svg
+  return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${now % GLOW_MS}ms !important}</style>`)
+}
+
 // Animations that share a prop switch straight to each other, the prop staying put.
 const SHARED: readonly AnimId[] = ['writing', 'stretch']
 
@@ -193,10 +202,11 @@ export const register: Register = on => {
     }
 
     const frame = await read($, shown)
+    const source = inPhase(SPRITES[frame] ?? SPRITES.listening ?? '', await $.clock.now())
     const { Box, Text, Svg } = $.ui.resolve(e)
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Svg source={SPRITES[frame] ?? SPRITES.listening} alt={`Clawd: ${text}`} width={80} height={55} isInteractive />
+        <Svg source={source} alt={`Clawd: ${text}`} width={80} height={55} isInteractive />
         <Text color={CLAY} weight="medium">
           {text}…
         </Text>
