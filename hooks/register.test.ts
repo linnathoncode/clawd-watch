@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, exitFrame, field, finishedTasks, homeTimes, inPhase, nextFrame, names, pickAnimation, taskAnimation } from './register'
+import { describeWaiting, exitFrame, field, finishedTasks, homeTimes, inPhase, isAmbient, nextFrame, names, pickAnimation, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
@@ -7,10 +7,30 @@ const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find a
 const agentWrite = { id: 'c', kind: 'subagent', label: 'Implement login', hint: 'Implement login general-purpose', since: 0 }
 const agentThink = { id: 'd', kind: 'subagent', label: 'Review the plan', hint: 'Review the plan Plan', since: 0 }
 const monitor = { id: 'e', kind: 'monitor', label: 'CI', hint: 'CI', since: 0 }
+const server = { ...shell, id: 'f', command: 'npm run dev' }
 
 test('describes the newest background wait', async () => {
   expect(describeWaiting([shell])).toBe('Waiting on command: Start the dev server')
   expect(describeWaiting([agentThink, monitor])).toBe('Waiting on monitor: CI (+1 more)')
+  expect(describeWaiting([server])).toBe('Running in background: Start the dev server')
+  expect(describeWaiting([server, agentThink, monitor])).toBe('Waiting on monitor: CI (+1 more, +1 running)')
+  expect(describeWaiting([monitor, server])).toBe('Waiting on monitor: CI (+1 running)')
+})
+
+test('servers and watchers run alongside; Claude does not wait on them', () => {
+  for (const command of ['npm run dev', 'pnpm dev', 'npx wrangler dev', 'python -m http.server 8000', 'uvicorn app:app --reload', 'docker compose up', 'tail -f log.txt', 'jest --watch', 'npx vite'])
+    expect(isAmbient({ ...shell, command })).toBe(true)
+  for (const command of ['npm test', 'npm run build', 'cargo build --release', 'rg auth src', 'sleep 200 && echo done', 'npm install'])
+    expect(isAmbient({ ...shell, command })).toBe(false)
+  // Agents and monitors are always waited on; any command running past ten minutes is not.
+  expect(isAmbient({ ...agentThink, command: 'npm run dev' })).toBe(false)
+  expect(isAmbient({ ...shell, command: 'npm test' }, 11 * 60_000)).toBe(true)
+  // Only servers running: Clawd idles after the opener, then gets bored and sleeps as usual.
+  expect(pickAnimation([server], 1000, 'wave')).toBe('wave')
+  expect(pickAnimation([server], 10_000, 'wave')).toBe('idle')
+  expect(pickAnimation([server], 2 * 60_000, 'wave')).toBe('scrolling')
+  // A wait alongside a server leads, even when the server started later.
+  expect(pickAnimation([agentWrite, server], 10_000, 'wave')).toBe('writing')
 })
 
 test('picks an animation from the task', () => {
@@ -24,7 +44,7 @@ test('picks an animation from the task', () => {
   expect(taskAnimation({ ...shell, hint: 'Wait for the release sleep 200' })).toBe('listening')
 })
 
-test('opens, takes idle breaks and falls asleep over time', () => {
+test('opens, takes idle breaks, gets bored and falls asleep over time', () => {
   expect(pickAnimation([shell], 0, 'wave')).toBe('wave')
   expect(pickAnimation([shell], 1000, 'hop')).toBe('hop')
   expect(pickAnimation([shell], 10_000, 'wave')).toBe('listening')
@@ -33,6 +53,9 @@ test('opens, takes idle breaks and falls asleep over time', () => {
   expect(pickAnimation([agentThink], 37_000, 'wave')).toBe('idle')
   expect(pickAnimation([agentThink], 39_000, 'wave')).toBe('thinking')
   expect(pickAnimation([shell, agentWrite], 10_000, 'wave')).toBe('writing')
+  expect(pickAnimation([shell], 80_000, 'wave')).toBe('listening')
+  expect(pickAnimation([shell], 90_000, 'wave')).toBe('scrolling')
+  expect(pickAnimation([agentWrite], 2 * 60_000, 'wave')).toBe('scrolling')
   expect(pickAnimation([shell], 4 * 60_000, 'wave')).toBe('sleeping')
 })
 

@@ -20,11 +20,13 @@ What Clawd does depends on the work and on how long the wait has run:
 | the newest task is a search (`rg`, `grep`, `find`, "search…") | peers through a magnifier | <img src="docs/previews/searching.svg" width="96" alt="Clawd searching with a magnifier"> |
 | a background agent is writing or fixing code | types on a laptop | <img src="docs/previews/writing.svg" width="96" alt="Clawd typing on a laptop"> |
 | a background agent is doing anything else | thinks | <img src="docs/previews/thinking.svg" width="96" alt="Clawd thinking"> |
+| only servers or watchers are running (`npm run dev`, `vite`, `docker compose up`, `tail -f`, or any command past 10 minutes) | idles, and the text says `Running in background` instead of `Waiting on` | <img src="docs/previews/idle.svg" width="96" alt="Clawd idling"> |
 | every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch otherwise | <img src="docs/previews/stretch.svg" width="96" alt="Clawd stretching at the laptop"> |
+| after 90 seconds | gets bored and doom-scrolls on a phone | <img src="docs/previews/scrolling.svg" width="96" alt="Clawd scrolling on a phone"> |
 | after 3 minutes | falls asleep | <img src="docs/previews/sleeping.svg" width="96" alt="Clawd asleep"> |
 
 Clawd never cuts straight from one animation into another. The one ending puts its props
-away (the headphones lift off, the laptop drops, the magnifier lowers) and Clawd settles into a
+away (the headphones lift off, the laptop drops, the magnifier lowers, the phone goes away) and Clawd settles into a
 plain standing pose; the next one then pops in with its own props.
 
 It draws as an animated SVG in the Claude desktop app and as a one-line text badge

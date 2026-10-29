@@ -438,11 +438,13 @@
         $ .leg{transform:scaleY(.5)}
         $ .tilt{transform:rotate(-4deg)}
         $ .squash{animation:${id}-br ${d(3.2)} ease-in-out infinite}
+        $ .eyes-c{animation:${id}-ed ${d(3.2)} ease-in-out infinite}
         $ .shadowg{animation:${id}-sh ${d(3.2)} ease-in-out infinite}
         $ .bub{transform-origin:50% 0%;animation:${id}-bu ${d(3.2)} ease-in-out infinite}
         $ .zz{opacity:0;animation:${id}-z ${d(3.2)} ease-out infinite} $ .z1{animation-delay:${d(1.6)}}
         @keyframes ${id}-br{0%,100%{transform:scale(1,1)}50%{transform:scale(1.04,1.08)}}
         @keyframes ${id}-sh{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.06)}}
+        @keyframes ${id}-ed{0%,100%{transform:translateY(1px)}40%,60%{transform:translateY(0)}}
         @keyframes ${id}-bu{0%{transform:scale(0);opacity:.8}50%{transform:scale(2.6);opacity:.8}54%{transform:scale(3.2);opacity:0}100%{transform:scale(0);opacity:0}}
         @keyframes ${id}-z{0%{opacity:0;transform:translate(0,2px) scale(.6)}20%{opacity:1}50%{transform:translate(2px,-2px) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(0,-5px) scale(1.1)}}`,
     },
@@ -517,6 +519,25 @@
         @keyframes ${id}-lk{0%,30%,68%,100%{transform:translateX(1px)}36%,62%{transform:translate(1px,1px)}}
         @keyframes ${id}-en{0%,41.9%{opacity:1}42%,57.9%{opacity:0}58%,100%{opacity:1}}
         @keyframes ${id}-es{0%,41.9%{opacity:0}42%,57.9%{opacity:1}58%,100%{opacity:0}}`,
+    },
+    {
+      id: 'scrolling', name: 'Doom scrolling', when: 'A long wait: Clawd gets bored, holds a phone at its chest, face lit by the screen, and flicks through the feed, liking a post now and then.',
+      sprite: {
+        fx: `<g class="hrt">${r(22, 9, 1, 1, RED)}${r(24, 9, 1, 1, RED)}${r(22, 10, 3, 1, RED)}${r(23, 11, 1, 1, RED)}</g>`,
+        front: `${r(11, 13, 10, 2, BLUE, ' class="shine" opacity="0"')}
+          <g class="phone">${r(14, 15, 4, 4, '#2E2C2B')}${r(15, 16, 1, 1, '#5C5A57')}</g>`,
+      },
+      css: id => `${blink(id, 5)}
+        $ .look{transform:translateY(1px)}
+        $ .armL{transform:translate(3px,2px)}
+        $ .armR{animation:${id}-th ${d(4)} ease-in-out infinite}
+        $ .squash{animation:${id}-br ${d(4)} ease-in-out infinite}
+        $ .shine{animation:${id}-sn ${d(4)} steps(1) infinite}
+        $ .hrt{transform-origin:50% 50%;opacity:0;animation:${id}-ht ${d(4)} ease-out infinite}
+        @keyframes ${id}-th{0%,9%,15%,34%,40%,59%,65%,84%,90%,100%{transform:translate(-3px,2px)}12%,37%,62%,87%{transform:translate(-3px,1px)}}
+        @keyframes ${id}-br{0%,100%{transform:scale(1,1)}50%{transform:scale(1.02,.97)}}
+        @keyframes ${id}-sn{0%{opacity:.08}12%{opacity:.16}37%{opacity:.1}62%{opacity:.18}87%{opacity:.08}}
+        @keyframes ${id}-ht{0%,63%{opacity:0;transform:translate(0,0) scale(.4)}67%{opacity:1;transform:translate(0,-1px) scale(1.2)}72%{transform:translate(0,-2px) scale(1)}84%{opacity:1;transform:translate(0,-4px) scale(1)}92%,100%{opacity:0;transform:translate(0,-5px) scale(1)}}`,
     },
     {
       id: 'wave', name: 'Waving', when: 'A new session starts.',

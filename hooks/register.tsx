@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { AnimId, Frame, Motion, Scene, WaitItem } from '../types'
 import type { Part } from './sprites'
@@ -11,14 +11,20 @@ const scene = atom({ plugin: 'clawd-watch', key: 'scene' } as const, null as Sce
 const shown = atom({ plugin: 'clawd-watch', key: 'shown' } as const, 'listening' as Frame)
 // When the frame on screen started, and for an exit, how far into its loop it cut in.
 const motion = atom({ plugin: 'clawd-watch', key: 'motion' } as const, { since: 0, elapsed: 0 } as Motion)
+// Whether Claude has been quiet long enough for Clawd to show.
+const resting = atom({ plugin: 'clawd-watch', key: 'resting' } as const, false)
 
 const CLAY = '#D97757'
 
 // Timings for the animation Clawd shows while Claude waits, in milliseconds.
 const OPENER_MS = 2500 // wave (or hop, if a task just finished) when the wait begins
-const SLEEP_AFTER_MS = 3 * 60 * 1000 // a long wait sends Clawd to sleep
+const SCROLL_AFTER_MS = 90 * 1000 // a long wait bores Clawd: out comes the phone
+const SLEEP_AFTER_MS = 3 * 60 * 1000 // a longer one sends Clawd to sleep
 const FORGET_AFTER_MS = 2 * 60 * 60 * 1000 // a task this old lost its end notice: stop waiting on it
 const BREAK_EVERY_MS = 30 * 1000 // now and then, a short break
+// How long Claude stays quiet before Clawd shows. A turn that follows straight on (a queued
+// prompt, a task's notice) starts inside it, so Clawd does not flash up between the two.
+const SETTLE_QUIET_MS = 600
 
 // The break each task takes, and how long it lasts: the exit into it plus one whole
 // cycle of the break animation.
@@ -47,6 +53,19 @@ const SEARCH = /\b(grep|rg|find|search\w*|look(ing)? for|locate|explore|scan)\b/
 const WORK = /\b(test\w*|pytest|jest|vitest|build\w*|compil\w*|install\w*|deploy\w*|lint\w*|tsc|cargo|make|gradle|mvn)\b/i
 const WRITE = /\b(writ\w*|implement\w*|edit\w*|fix\w*|refactor\w*|creat\w*|add\w*|updat\w*|build\w*|draft\w*)\b/i
 
+// A command that runs alongside Claude rather than one Claude waits on: a dev server, a
+// watcher, a tunnel. Matched on the command line alone, since a description like "Set up
+// the tests" says nothing about whether it ends.
+const SERVE = /\b(?:(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve|preview|watch)|(?:vite|next|nuxt|astro|remix|wrangler|netlify|vercel|hugo|jekyll)\s+(?:dev|serve)|webpack\s+serve|vite(?:\s|$)|nodemon|uvicorn|gunicorn|flask\s+run|rails\s+s(?:erver)?|manage\.py\s+runserver|php\s+-S|http\.server|http-server|ngrok|cloudflared|(?:docker[- ])?compose\s+up|tail\s+-[fF]|cargo\s+watch|watchexec|live-server)\b|\s--watch\b|\stsc\s+-w\b/i
+// A command that has run this long without ending is treated the same way, whatever it is.
+const AMBIENT_AFTER_MS = 10 * 60 * 1000
+
+// True when `item` is running alongside Claude, not something Claude is waiting on.
+export function isAmbient(item: WaitItem, now?: number): boolean {
+  if (item.kind !== 'shell') return false
+  return SERVE.test(` ${item.command ?? ''}`) || (now !== undefined && now - item.since > AMBIENT_AFTER_MS)
+}
+
 // The animation for what is running, before timing is taken into account.
 export function taskAnimation(item: WaitItem | undefined): AnimId {
   if (!item) return 'listening'
@@ -57,11 +76,16 @@ export function taskAnimation(item: WaitItem | undefined): AnimId {
 }
 
 // The animation to show `elapsed` ms into a quiet stretch that opened with `opener`.
-export function pickAnimation(items: readonly WaitItem[], elapsed: number, opener: Scene['opener']): AnimId {
+// `now` lets a long-running command count as running alongside.
+export function pickAnimation(items: readonly WaitItem[], elapsed: number, opener: Scene['opener'], now?: number): AnimId {
   if (elapsed < OPENER_MS) return opener
   if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
-  // The newest task leads: it is the one Claude most likely stopped to wait for.
-  const task = taskAnimation(items[items.length - 1])
+  if (elapsed >= SCROLL_AFTER_MS) return 'scrolling'
+  // The newest task Claude waits on leads: it is the one Claude most likely stopped for.
+  // With only servers and watchers running, Clawd just idles.
+  const awaited = items.filter(i => !isAmbient(i, now))
+  if (awaited.length === 0) return 'idle'
+  const task = taskAnimation(awaited[awaited.length - 1])
   // A break from writing is a stretch at the laptop; the others take the headphones off or
   // put the magnifier down and scratch their head.
   const pause = BREAKS[task]
@@ -137,12 +161,18 @@ export function exitFrame(frame: Frame, elapsed: number): { svg: string; ms: num
 
 const KIND: Record<string, string> = { shell: 'command', subagent: 'agent', monitor: 'monitor', workflow: 'workflow' }
 
-export function describeWaiting(items: readonly WaitItem[]): string {
-  const last = items[items.length - 1]
-  if (!last) return 'Waiting on background work'
+export function describeWaiting(items: readonly WaitItem[], now?: number): string {
+  const awaited = items.filter(i => !isAmbient(i, now))
+  const alongside = items.length - awaited.length
+  const last = awaited[awaited.length - 1]
+  if (!last) {
+    const server = items[items.length - 1]
+    if (!server) return 'Waiting on background work'
+    return `Running in background: ${server.label}${items.length > 1 ? ` (+${items.length - 1} more)` : ''}`
+  }
   const what = `${KIND[last.kind] ?? last.kind}: ${last.label}`
-  const more = items.length > 1 ? ` (+${items.length - 1} more)` : ''
-  return `Waiting on ${what}${more}`
+  const extra = [awaited.length > 1 ? `+${awaited.length - 1} more` : '', alongside ? `+${alongside} running` : ''].filter(Boolean)
+  return `Waiting on ${what}${extra.length ? ` (${extra.join(', ')})` : ''}`
 }
 
 const short = (text: string) => {
@@ -253,6 +283,8 @@ export const register: Register = on => {
   let taskEnded = false
   // Set while Claude works: Clawd is hidden then, so it holds its frame until Claude is quiet.
   let busy = false
+  // The wait between Claude going quiet and Clawd showing.
+  let settling: Timer | null = null
 
   // Track background work ourselves: a launch adds it, its completion notice removes it.
   on('tool.call', async ($, e, next) => {
@@ -272,7 +304,7 @@ export const register: Register = on => {
     let item: WaitItem | null = null
     if ((e.tool === 'Bash' || e.tool === 'PowerShell') && e.run_in_background) {
       const taskId = field(result.result, 'backgroundTaskId')
-      item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}`, since, taskId }
+      item = { id: e.tool_use_id, kind: 'shell', label: short(e.description ?? e.command), hint: `${e.description ?? ''} ${e.command}`, since, taskId, command: e.command }
     } else if (e.tool === 'Agent' && e.run_in_background !== false) {
       // The launch answers with the agent's id: its notices and the agent list use it.
       const agentId = field(result.result, 'agentId')
@@ -304,7 +336,7 @@ export const register: Register = on => {
       if (current && items.length === 0) await update($, scene, () => null)
       if (!current || items.length === 0 || busy) return
       const t = await $.clock.now()
-      const target = pickAnimation(items, t - current.since, current.opener)
+      const target = pickAnimation(items, t - current.since, current.opener, t)
       const now = await read($, shown)
       const playing = await read($, motion)
       // An exit runs until its loop has come home and its props have left.
@@ -344,6 +376,9 @@ export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e)
     busy = true
+    settling?.cancel()
+    settling = null
+    await update($, resting, () => false).catch(() => {})
     if (await finish($, e.text)) taskEnded = true
     return next(e)
   })
@@ -365,18 +400,25 @@ export const register: Register = on => {
     if (e.agentId) return result
 
     traced.on = await $.fs.exists('.clawd-trace').catch(() => false)
-    const items = await read($, waiting).catch(() => [] as WaitItem[])
-    if (items.length > 0) await quiet($, taskEnded).catch(() => {})
-    taskEnded = false
-    busy = false
+    settling?.cancel()
+    settling = $.clock.after(SETTLE_QUIET_MS, () => {
+      settling = null
+      void (async () => {
+        const items = await read($, waiting)
+        if (items.length > 0) await quiet($, taskEnded)
+        taskEnded = false
+        busy = false
+        await update($, resting, () => true)
+      })().catch(() => {})
+    })
     return result
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const items = await read($, waiting)
-    if (e.props.hasSurvey || e.props.isWorking || items.length === 0) return next(e)
+    if (e.props.hasSurvey || e.props.isWorking || items.length === 0 || !(await read($, resting))) return next(e)
 
-    const text = describeWaiting(items)
+    const text = describeWaiting(items, await $.clock.now())
     if (e.surface === 'terminal') {
       const { Text } = $.ui.resolve(e)
       return <Text color={CLAY}>[o_o] {text}…</Text>

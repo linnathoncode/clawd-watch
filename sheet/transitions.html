@@ -137,7 +137,7 @@
 <script src="frames.js"></script>
 <script>
 (() => {
-  const ANIMS = ['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch', 'wave', 'hop', 'sleeping']
+  const ANIMS = ['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch', 'wave', 'hop', 'scrolling', 'sleeping']
   const SHARED = ['writing', 'stretch']
   const GLOW_MS = 1100
 
@@ -224,10 +224,11 @@
       ],
     },
     {
-      title: 'Sleep',
-      note: 'After 3 minutes Clawd falls asleep from whatever is showing, and wakes with the next wave or hop.',
+      title: 'Boredom and sleep',
+      note: 'After 90 seconds Clawd gets bored and scrolls on a phone, from whatever is showing. After 3 minutes the phone goes away and Clawd falls asleep, and wakes with the next wave or hop.',
       cards: [
-        ...['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch'].map(f => ({ steps: [[f, 4], ['sleeping', 6]], why: '3 min in' })),
+        ...['listening', 'thinking', 'writing', 'searching', 'idle', 'stretch'].map(f => ({ steps: [[f, 4], ['scrolling', 6]], why: '90 s in' })),
+        { steps: [['scrolling', 5], ['sleeping', 6]], why: '3 min in' },
         { steps: [['sleeping', 5], ['wave', 3], ['listening', 4]], why: 'you prompt again' },
         { steps: [['sleeping', 5], ['hop', 3], ['listening', 4]], why: 'task ended' },
       ],

@@ -22,7 +22,7 @@ const script = html.slice(html.indexOf('(() => {') + '(() => {'.length, html.ind
 const sheet = new Function(`${script}; return { ANIMS, base, blink, sprite, d };`)()
 const { ANIMS, base, blink, sprite } = sheet
 
-const USED = ['idle', 'listening', 'thinking', 'writing', 'stretch', 'hop', 'sleeping', 'searching', 'wave']
+const USED = ['idle', 'listening', 'thinking', 'writing', 'stretch', 'hop', 'sleeping', 'searching', 'scrolling', 'wave']
 const SHARED = ['writing', 'stretch']
 
 // What each animation takes away when it ends, and where it goes.
@@ -37,7 +37,10 @@ const OUT = {
   writing: { keep: a => ({ over: a.sprite.over }), to: 'translateY(2px)' },
   stretch: { keep: a => ({ over: a.sprite.over }), to: 'translateY(2px)' },
   searching: { keep: a => ({ front: a.sprite.front }), to: 'translate(1px,3px) rotate(20deg)', from: () => '$ .bigeye{opacity:0}' },
+  scrolling: { keep: a => ({ front: a.sprite.front }), to: 'translateY(4px)' },
   sleeping: { from: id => `${closedEyes(id)}
+    $ .eyes-c{animation:${id}-oc .7s steps(1) both,${id}-we .35s ease-out both}
+    @keyframes ${id}-we{from{transform:translateY(1px)}to{transform:none}}
     $ .jumper{animation:${id}-wj .7s ease-out both} $ .leg{animation:${id}-wl .7s ease-out both} $ .tilt{animation:${id}-wt .7s ease-out both}
     @keyframes ${id}-wj{from{transform:translateY(1px)}to{transform:none}}
     @keyframes ${id}-wl{from{transform:scaleY(.5)}to{transform:none}}
