@@ -49,11 +49,11 @@ const OUT = {
 
 // Eyes that start shut and open halfway through the exit.
 function closedEyes(id) {
-  return `$ .eyes-n{animation:${id}-on .7s steps(1) both} $ .eyes-c{animation:${id}-oc .7s steps(1) both}
+  return `$ .eyes-n{animation:${id}-on .5s steps(1) both} $ .eyes-c{animation:${id}-oc .5s steps(1) both}
     @keyframes ${id}-on{0%{opacity:0}50%{opacity:1}} @keyframes ${id}-oc{0%{opacity:1}50%{opacity:0}}`
 }
 
-const ENTER = id => `$ .enter{transform-origin:50% 100%;animation:${id}-in .4s ease-out both}
+const ENTER = (id, squash = true) => `${squash ? `$ .enter{transform-origin:50% 100%;animation:${id}-in .4s ease-out both}` : ''}
   $ .pin{transform-origin:50% 50%;animation:${id}-pin .45s ease-out both}
   @keyframes ${id}-in{0%{transform:scale(1.08,.88)}45%{transform:scale(.96,1.05)}100%{transform:none}}
   @keyframes ${id}-pin{0%{opacity:0;transform:scale(.5)}100%{opacity:1;transform:none}}`
@@ -62,14 +62,15 @@ const ENTER = id => `$ .enter{transform-origin:50% 100%;animation:${id}-in .4s e
 const LEAVE = (id, to) => `$ .prop{transform-origin:50% 50%;animation:${id}-lv .5s ease-in both}
   @keyframes ${id}-lv{0%{opacity:1;transform:none}100%{opacity:0;transform:${to}}}`
 
-// Every loop starts and ends on the same standing pose, and an exit finishes the loop
-// it cuts into: each part of Clawd plays on from where it was to its next standing
-// moment, then stops. A part holding an item (a hand on the chin or the magnifier) has
-// a home pose of its own instead: it plays on to that pose, then eases back to standing.
-// Where the loop was is only known when the exit starts, so the exit's CSS carries
-// placeholders (__D0__, __C0__, __F0__) that the plugin fills in from `EXITS`.
+// Every loop starts and ends on the same standing pose, and an exit brings Clawd back to
+// it: each part of Clawd eases from the pose it was in when the exit cut in, straight
+// to standing, all at once and while the props leave. Where the loop was is only known
+// when the exit starts, so the exit's CSS carries placeholders (__P0__, ...) that the
+// plugin fills in from `EXITS` with each part's pose at that moment.
 const BODY = /^(mover|flip|jumper|squash|tilt|legs?|l[1-4]|armL|armR|look|face|shadowg|eyes-[nhcws])$/
-const SETTLE_MS = 350
+const SETTLE_MS = 450
+const LEAVE_MS = 500 // the props leaving (LEAVE below)
+const TIMING = /\b(ease(?:-in-out|-in|-out)?|linear|steps\([^)]*\)|cubic-bezier\([^)]*\))/
 
 const seconds = text => Number(/([\d.]+)s/.exec(text)?.[1] ?? 0) * 1000
 const identity = t => t === 'none' || [...t.matchAll(/(\w+)\(([^)]*)\)/g)].every(([, f, args]) => {
@@ -86,6 +87,22 @@ function keyframes(css) {
     })) }
   }
   return all
+}
+
+// The other way in: a pose held for the whole loop (sleep's slump, a hand gripping the
+// phone) eases in from standing as the animation starts, instead of snapping to it.
+function arriving(a, id) {
+  const rules = []
+  for (const m of a.css(id).matchAll(/\$ ([^{}@]+?)\{([^{}]*)\}/g)) {
+    const classes = m[1].split(',').map(s => s.trim().replace(/^(\$ )?\./, ''))
+    if (!classes.every(c => BODY.test(c))) continue
+    const decls = m[2].split(';').map(s => s.trim()).filter(Boolean)
+    const still = decls.find(s => s.startsWith('transform:'))?.slice('transform:'.length)
+    if (decls.some(s => s.startsWith('animation:')) || !still || identity(still)) continue
+    const name = `${id}-a${rules.length}`
+    rules.push(`${classes.map(c => `$ .${c}`).join(',')}{animation:${name} ${SETTLE_MS}ms ease-out both} @keyframes ${name}{from{transform:none}to{transform:${still}}}`)
+  }
+  return rules.join('\n')
 }
 
 function finishing(a, oid, skip) {
@@ -110,44 +127,30 @@ function finishing(a, oid, skip) {
       rules.push(`${sel}{${[...keep, `animation:${name} ${SETTLE_MS}ms ease-out both`].join(';')}}`)
       continue
     }
-    if (/alternate|reverse/.test(anim)) throw new Error(`${a.id}: ${classes} plays back and forth, so it has no last frame`)
     const name = anim.split(' ')[0]
     const k = kf[name]
     if (!k) continue
     const prop = /opacity:/.test(k.frames.at(-1)?.body ?? '') && !/transform:/.test(k.frames.at(-1)?.body ?? '') ? 'opacity' : 'transform'
     const rest = prop === 'transform' ? 'none' : classes[0] === 'eyes-n' ? '1' : '0'
     const value = f => new RegExp(`${prop}:([^;]+)`).exec(f.body)?.[1]?.trim()
-    const end = k.frames.find(f => f.at.includes(100))
-    const pose = (end && value(end)) ?? rest
-    const atHome = v => (prop === 'transform' && identity(pose) ? identity(v) : v.replace(/\s/g, '') === pose.replace(/\s/g, ''))
-    // The stretches of the loop the part spends at home: between two keyframes that are
-    // both home, or after one that is home when the loop moves in steps.
-    const points = k.frames.flatMap(f => f.at.map(at => ({ at, home: value(f) !== undefined && atHome(value(f)) })))
-    if (!points.some(p => p.at === 0)) points.push({ at: 0, home: atHome(rest) })
-    if (!end) points.push({ at: 100, home: true })
-    points.sort((x, y) => x.at - y.at)
-    const stepped = /steps\(/.test(anim)
-    const ms = seconds(anim)
-    const spans = []
-    points.forEach((p, j) => {
-      if (!p.home) return
-      const next = points[j + 1]
-      const to = next && (next.home || stepped) ? next.at : p.at
-      const last = spans.at(-1)
-      if (last && last[1] >= p.at) last[1] = Math.max(last[1], to)
-      else spans.push([p.at, to])
+    // The part's keyframes, each with the timing it moves on to the next one by. A loop
+    // with no 0% or 100% keyframe takes the part's own pose there, as CSS does.
+    const base = prop === 'transform' ? (still ?? 'none') : rest
+    const frames = k.frames.flatMap(f => {
+      const v = value(f)
+      const ease = /animation-timing-function:([^;]+)/.exec(f.body)?.[1]?.trim()
+      return v === undefined ? [] : f.at.map(at => ({ at, value: v, ...(ease ? { ease } : {}) }))
     })
-    const settle = prop === 'transform' ? !identity(pose) : pose !== rest
+    if (!frames.some(f => f.at === 0)) frames.push({ at: 0, value: base })
+    if (!frames.some(f => f.at === 100)) frames.push({ at: 100, value: base })
+    frames.sort((x, y) => x.at - y.at)
     const delay = seconds(decls.find(s => s.startsWith('animation-delay:')) ?? '')
     const i = parts.length
-    parts.push({ ms, delay, home: spans.map(([x, y]) => [x, y].map(p => Math.round((p / 100) * ms))), settle })
-    extra.push(k.text)
-    let rule = [...keep, `animation:${anim}`, `animation-delay:__D${i}__`, `animation-iteration-count:__C${i}__`]
-    if (settle) {
-      extra.push(`@keyframes ${oid}-s${i}{from{${prop}:${pose}}to{${prop}:${rest}}}`)
-      rule = [...keep, `animation:${anim},${oid}-s${i} ${SETTLE_MS}ms ease-out forwards`, `animation-delay:__D${i}__,__F${i}__`, `animation-iteration-count:__C${i}__,1`]
-    }
-    rules.push(`${sel}{${rule.join(';')}}`)
+    parts.push({ ms: seconds(anim), delay, timing: TIMING.exec(anim)?.[1] ?? 'ease', alternate: /alternate/.test(anim), frames })
+    // An eye shape swaps in at once (halfway through); the body eases.
+    const timing = prop === 'opacity' ? `${SETTLE_MS / 2}ms steps(1,end)` : `${SETTLE_MS}ms ease-out`
+    extra.push(`@keyframes ${oid}-s${i}{from{${prop}:__P${i}__}to{${prop}:${rest}}}`)
+    rules.push(`${sel}{${[...keep, `animation:${oid}-s${i} ${timing} both`].join(';')}}`)
   }
   return { css: [...rules, ...extra].join('\n'), parts }
 }
@@ -170,7 +173,9 @@ for (const id of USED) {
   const name = a.name.toLowerCase()
   const props = a.sprite ?? {}
 
-  frames[id] = svg(id, name, `${a.css(id)}\n${ENTER(id)}`, `<g class="enter">${sprite(wrap(props, 'pin'))}</g>`)
+  // Idle and sleep start without the entrance squash: idle brings nothing in, and Clawd
+  // sinks into sleep rather than bouncing into it.
+  frames[id] = svg(id, name, `${a.css(id)}\n${ENTER(id, !['idle', 'sleeping'].includes(id))}\n${arriving(a, id)}`, `<g class="enter">${sprite(wrap(props, 'pin'))}</g>`)
   if (SHARED.includes(id)) frames[`${id}~`] = svg(`${id}~`, name, a.css(`${id}-on`), sprite(props))
 
   const out = OUT[id]
@@ -180,7 +185,9 @@ for (const id of USED) {
   // Parts the exit already moves on its own are left out of the finishing.
   const own = [...from.matchAll(/\.([\w-]+)\{/g)].map(m => m[1])
   const finish = finishing(a, oid, new RegExp(`^(${own.join('|') || '$^'})$`))
-  exits[oid] = finish.parts
+  // The exit is over once the props are gone, every part stands and its own moves are done.
+  const ms = Math.max(SETTLE_MS, out.keep ? LEAVE_MS : 0, ...[...from.matchAll(/([\d.]+)s\b/g)].map(m => Number(m[1]) * 1000))
+  exits[oid] = { ms, parts: finish.parts }
   frames[oid] = svg(oid, name, `${blink(oid, 4)}\n${LEAVE(oid, out.to ?? 'none')}\n${from}\n${finish.css}`, sprite(kept))
 }
 
@@ -195,12 +202,14 @@ export const SPRITES: Record<string, string> = {
 ${lines.join('\n')}
 }
 
-// For each exit, the loop parts it finishes, in the order of its placeholders: the loop's
-// length and the part's own delay (ms), the stretches of the loop (ms) it spends at its
-// home pose, and whether it eases from that pose back to standing afterwards.
-export type Part = { ms: number; delay: number; home: [number, number][]; settle: boolean }
+// For each exit, how long it runs (ms), and the loop parts it brings back to standing, in
+// the order of its placeholders: each one's loop length and delay (ms), its timing, whether
+// it plays back and forth, and its keyframes (at: % of the loop; ease: the keyframe's own timing).
+export type Keyframe = { at: number; value: string; ease?: string }
+export type Part = { ms: number; delay: number; timing: string; alternate: boolean; frames: Keyframe[] }
+export type Exit = { ms: number; parts: Part[] }
 
-export const EXITS: Record<string, Part[]> = {
+export const EXITS: Record<string, Exit> = {
 ${exitLines.join('\n')}
 }
 `,

@@ -156,39 +156,62 @@
     return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${since % GLOW_MS}ms !important}</style>`)
   }
 
-  // Copies of homeTimes and exitFrame: an exit plays its loop on until each part is home.
-  const SETTLE_MS = 350, LEAVE_MS = 700, NEAR_MS = 1, LOOK_AHEAD_MS = 8000
+  // Copies of eased, between, poseAt and exitFrame: an exit eases each part from where the
+  // loop had it, straight to standing.
+  const LEAVE_MS = 500
   const mod = (x, m) => ((x % m) + m) % m
-  function atHome(part, x) {
-    const at = mod(x, part.ms)
-    return part.home.some(([a, b]) => at >= a - NEAR_MS && at < b + NEAR_MS) || (at > part.ms - NEAR_MS && part.home.some(([a]) => a === 0))
-  }
-  function homeTimes(parts, elapsed) {
-    const at = parts.map(p => elapsed - p.delay)
-    const times = parts.map(() => 0)
-    for (const ms of new Set(parts.map(p => p.ms))) {
-      const group = parts.flatMap((p, i) => (p.ms === ms ? [i] : []))
-      const candidates = [0]
-      for (const i of group) for (const [a] of parts[i].home) for (let t = mod(a - at[i], ms); t <= LOOK_AHEAD_MS; t += ms) candidates.push(t)
-      candidates.sort((x, y) => x - y)
-      const home = (i, t) => atHome(parts[i], at[i] + t)
-      const together = candidates.find(t => group.every(i => home(i, t)))
-      for (const i of group) times[i] = together ?? candidates.find(t => home(i, t)) ?? 0
+  const CURVES = { linear: [0, 0, 1, 1], ease: [0.25, 0.1, 0.25, 1], 'ease-in': [0.42, 0, 1, 1], 'ease-out': [0, 0, 0.58, 1], 'ease-in-out': [0.42, 0, 0.58, 1] }
+  function eased(timing, t) {
+    const steps = /steps\(\s*(\d+)/.exec(timing)
+    if (steps) return Math.floor(t * Number(steps[1])) / Number(steps[1])
+    const bezier = /cubic-bezier\(([^)]*)\)/.exec(timing)
+    const [x1, y1, x2, y2] = bezier ? bezier[1].split(',').map(Number) : (CURVES[timing] ?? CURVES.ease)
+    const at = (a, b, s) => 3 * a * s * (1 - s) ** 2 + 3 * b * s ** 2 * (1 - s) + s ** 3
+    let lo = 0, hi = 1
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2
+      if (at(x1, x2, mid) < t) lo = mid
+      else hi = mid
     }
-    return times
+    return at(y1, y2, (lo + hi) / 2)
+  }
+  function functions(value) {
+    return [...value.matchAll(/([\w]+)\(([^)]*)\)/g)].map(([, name, list]) => {
+      const args = list.split(',').map(s => {
+        const m = /(-?[\d.]+)([a-z%]*)/.exec(s.trim())
+        return { n: Number(m?.[1] ?? 0), unit: m?.[2] ?? '' }
+      })
+      if ((name === 'translate' || name === 'scale') && args.length === 1) args.push(name === 'scale' ? { ...args[0] } : { n: 0, unit: '' })
+      return { name, args }
+    })
+  }
+  const still = fn => ({ name: fn.name, args: fn.args.map(a => ({ n: fn.name.startsWith('scale') ? 1 : 0, unit: a.unit })) })
+  function between(a, b, share) {
+    if (!/\(/.test(a + b) && a !== 'none' && b !== 'none') return String(Number(a) + (Number(b) - Number(a)) * share)
+    let fa = functions(a), fb = functions(b)
+    if (fa.length === 0) fa = fb.map(still)
+    if (fb.length === 0) fb = fa.map(still)
+    if (fa.length !== fb.length || fa.some((f, i) => f.name !== fb[i].name || f.args.length !== fb[i].args.length)) return share < 0.5 ? a : b
+    const num = n => String(Math.round(n * 1000) / 1000)
+    return fa.map((f, i) => `${f.name}(${f.args.map((x, j) => num(x.n + (fb[i].args[j].n - x.n) * share) + (x.unit || fb[i].args[j].unit)).join(',')})`).join(' ')
+  }
+  function poseAt(part, elapsed) {
+    const frames = part.frames
+    if (elapsed < part.delay) return frames[0].value
+    const run = elapsed - part.delay
+    let at = (mod(run, part.ms) / part.ms) * 100
+    if (part.alternate && Math.floor(run / part.ms) % 2 === 1) at = 100 - at
+    const j = Math.max(0, frames.findLastIndex(f => f.at <= at))
+    const from = frames[j], to = frames[j + 1]
+    if (!to || to.at === from.at) return from.value
+    return between(from.value, to.value, eased(from.ease ?? part.timing, (at - from.at) / (to.at - from.at)))
   }
   function exitFrame(frame, elapsed) {
-    const parts = window.EXITS[frame] ?? []
-    const times = homeTimes(parts, elapsed)
+    const exit = window.EXITS[frame]
     let svg = window.SPRITES[frame] ?? ''
-    let ms = LEAVE_MS
-    parts.forEach((p, i) => {
-      const at = mod(elapsed - p.delay, p.ms)
-      const t = times[i]
-      svg = svg.replace(`__D${i}__`, `${-Math.round(at)}ms`).replace(`__C${i}__`, String((at + t) / p.ms)).replace(`__F${i}__`, `${Math.round(t)}ms`)
-      ms = Math.max(ms, t + (p.settle ? SETTLE_MS : 0))
-    })
-    return { svg, ms }
+    if (!exit) return { svg, ms: LEAVE_MS }
+    exit.parts.forEach((p, i) => { svg = svg.replace(`__P${i}__`, poseAt(p, elapsed)) })
+    return { svg, ms: exit.ms }
   }
 
   // Each step is [animation, ticks it plays once it is on screen]. Holds follow the plugin's

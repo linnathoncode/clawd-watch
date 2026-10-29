@@ -104,59 +104,98 @@ export function nextFrame(current: Frame, target: AnimId): Frame {
   return `${playing}-out`
 }
 
-// An exit finishes the loop it cuts into (see scripts/build-sprites.mjs): it plays on until
-// every part of Clawd is at home at the same moment, then the parts holding an item ease
-// back to standing while the props leave.
-const SETTLE_MS = 350
-const LEAVE_MS = 700 // the props leaving, and sleep's wake-up
-const NEAR_MS = 1 // rounding: the spans are whole milliseconds
-const LOOK_AHEAD_MS = 8000
+// An exit brings Clawd back to standing from wherever the loop it cut into had him (see
+// scripts/build-sprites.mjs): each part eases from its pose at that moment, worked out here
+// from the loop's keyframes, while the props leave.
+const LEAVE_MS = 500 // an exit with nothing to settle: the props leaving
 const EXIT_SLACK_MS = 50 // the drawing starts a moment after the frame is written
 
 const mod = (x: number, m: number) => ((x % m) + m) % m
 
-function atHome(part: Part, x: number): boolean {
-  const at = mod(x, part.ms)
-  return part.home.some(([a, b]) => at >= a - NEAR_MS && at < b + NEAR_MS) || (at > part.ms - NEAR_MS && part.home.some(([a]) => a === 0))
+// CSS timing functions, as the share of the way from one keyframe to the next at `t`.
+const CURVES: Record<string, [number, number, number, number]> = {
+  linear: [0, 0, 1, 1],
+  ease: [0.25, 0.1, 0.25, 1],
+  'ease-in': [0.42, 0, 1, 1],
+  'ease-out': [0, 0, 0.58, 1],
+  'ease-in-out': [0.42, 0, 0.58, 1],
+}
+export function eased(timing: string, t: number): number {
+  const steps = /steps\(\s*(\d+)/.exec(timing)
+  if (steps) return Math.floor(t * Number(steps[1])) / Number(steps[1])
+  const bezier = /cubic-bezier\(([^)]*)\)/.exec(timing)
+  const [x1, y1, x2, y2] = bezier ? (bezier[1] ?? '').split(',').map(Number) : (CURVES[timing] ?? CURVES.ease ?? [0, 0, 1, 1])
+  const at = (a: number, b: number, s: number) => 3 * a * s * (1 - s) ** 2 + 3 * b * s ** 2 * (1 - s) + s ** 3
+  // The curve's x runs one way from 0 to 1: find where it is `t`, then read y there.
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2
+    if (at(x1 ?? 0, x2 ?? 1, mid) < t) lo = mid
+    else hi = mid
+  }
+  return at(y1 ?? 0, y2 ?? 1, (lo + hi) / 2)
 }
 
-// When each part stops, in ms after cutting in `elapsed` ms into the loop. Parts that
-// share a beat (the same loop length, like a walk and its steps) stop together, at the
-// first moment all of them are home; parts on other beats stop on their own.
-export function homeTimes(parts: readonly Part[], elapsed: number): number[] {
-  const at = parts.map(p => elapsed - p.delay)
-  const times = parts.map(() => 0)
-  for (const ms of new Set(parts.map(p => p.ms))) {
-    const group = parts.flatMap((p, i) => (p.ms === ms ? [i] : []))
-    const candidates = [0]
-    for (const i of group) {
-      for (const [a] of parts[i]?.home ?? []) for (let t = mod(a - (at[i] ?? 0), ms); t <= LOOK_AHEAD_MS; t += ms) candidates.push(t)
-    }
-    candidates.sort((x, y) => x - y)
-    const home = (i: number, t: number) => atHome(parts[i] as Part, (at[i] ?? 0) + t)
-    const together = candidates.find(t => group.every(i => home(i, t)))
-    // No moment soon enough: each part stops at its own next home.
-    for (const i of group) times[i] = together ?? candidates.find(t => home(i, t)) ?? 0
-  }
-  return times
+// A transform as its functions, two-argument ones always given both: `translate(1px)` is
+// `translate(1px,0)`, `scale(.9)` is `scale(.9,.9)`; `none` is no functions.
+type Fn = { name: string; args: { n: number; unit: string }[] }
+function functions(value: string): Fn[] {
+  return [...value.matchAll(/([\w]+)\(([^)]*)\)/g)].map(([, name = '', list = '']) => {
+    const args = list.split(',').map(s => {
+      const m = /(-?[\d.]+)([a-z%]*)/.exec(s.trim())
+      return { n: Number(m?.[1] ?? 0), unit: m?.[2] ?? '' }
+    })
+    if ((name === 'translate' || name === 'scale') && args.length === 1) args.push(name === 'scale' ? { ...args[0]! } : { n: 0, unit: '' })
+    return { name, args }
+  })
+}
+const still = (fn: Fn): Fn => ({ name: fn.name, args: fn.args.map(a => ({ n: fn.name.startsWith('scale') ? 1 : 0, unit: a.unit })) })
+
+// The pose `share` of the way from transform (or opacity) `a` to `b`.
+export function between(a: string, b: string, share: number): string {
+  if (!/\(/.test(a + b) && a !== 'none' && b !== 'none') return String(Number(a) + (Number(b) - Number(a)) * share)
+  let fa = functions(a)
+  let fb = functions(b)
+  if (fa.length === 0) fa = fb.map(still)
+  if (fb.length === 0) fb = fa.map(still)
+  // Different functions do not blend: take the nearer pose.
+  if (fa.length !== fb.length || fa.some((f, i) => f.name !== fb[i]?.name || f.args.length !== fb[i]?.args.length)) return share < 0.5 ? a : b
+  const num = (n: number) => String(Math.round(n * 1000) / 1000)
+  return fa
+    .map((f, i) => `${f.name}(${f.args.map((x, j) => {
+      const y = fb[i]?.args[j] ?? x
+      return num(x.n + (y.n - x.n) * share) + (x.unit || y.unit)
+    }).join(',')})`)
+    .join(' ')
+}
+
+// Where `part` has Clawd `elapsed` ms into its loop.
+export function poseAt(part: Part, elapsed: number): string {
+  const frames = part.frames
+  const first = frames[0]?.value ?? 'none'
+  // Before a delayed part starts, it has its pose at the start.
+  if (elapsed < part.delay) return first
+  const run = elapsed - part.delay
+  let at = (mod(run, part.ms) / part.ms) * 100
+  if (part.alternate && Math.floor(run / part.ms) % 2 === 1) at = 100 - at
+  const j = Math.max(0, frames.findLastIndex(f => f.at <= at))
+  const from = frames[j]
+  const to = frames[j + 1]
+  if (!from) return first
+  if (!to || to.at === from.at) return from.value
+  return between(from.value, to.value, eased(from.ease ?? part.timing, (at - from.at) / (to.at - from.at)))
 }
 
 // The exit `frame`, cut in `elapsed` ms into its loop, and how long it takes.
 export function exitFrame(frame: Frame, elapsed: number): { svg: string; ms: number } {
-  const parts = EXITS[frame] ?? []
-  const times = homeTimes(parts, elapsed)
+  const exit = EXITS[frame]
   let svg = SPRITES[frame] ?? ''
-  let ms = LEAVE_MS
-  parts.forEach((p, i) => {
-    const at = mod(elapsed - p.delay, p.ms)
-    const t = times[i] ?? 0
-    svg = svg
-      .replace(`__D${i}__`, `${-Math.round(at)}ms`)
-      .replace(`__C${i}__`, String((at + t) / p.ms))
-      .replace(`__F${i}__`, `${Math.round(t)}ms`)
-    ms = Math.max(ms, t + (p.settle ? SETTLE_MS : 0))
+  if (!exit) return { svg, ms: LEAVE_MS }
+  exit.parts.forEach((p, i) => {
+    svg = svg.replace(`__P${i}__`, poseAt(p, elapsed))
   })
-  return { svg, ms }
+  return { svg, ms: exit.ms }
 }
 
 const KIND: Record<string, string> = { shell: 'command', subagent: 'agent', monitor: 'monitor', workflow: 'workflow' }

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { describeWaiting, exitFrame, field, finishedTasks, homeTimes, inPhase, isAmbient, nextFrame, names, pickAnimation, taskAnimation } from './register'
+import { between, describeWaiting, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
@@ -91,23 +91,38 @@ test('the laptop glow picks up where the clock had it when the frame started', (
   expect(inPhase(SPRITES.listening ?? '', 2300)).toBe(SPRITES.listening ?? '')
 })
 
-test('an exit plays its loop on until each part is home, parts on one beat together', () => {
-  // Cut in at the loop's start: everything is already home.
-  expect(homeTimes(EXITS['listening-out'] ?? [], 0).every(t => t === 0)).toBe(true)
-  // Searching cut in while Clawd stands forward at the glass: it walks back to the
-  // middle (96%), its steps and lean stopping with it.
-  expect(new Set(homeTimes(EXITS['searching-out'] ?? [], 2000))).toEqual(new Set([2800]))
-  // Thinking's bob, sway and chin keep beats of their own: each stops at its next home.
-  expect(homeTimes(EXITS['thinking-out'] ?? [], 1000)).toEqual([600, 1400, 200])
+test('poses between keyframes follow the CSS timing', () => {
+  expect(Math.abs(eased('linear', 0.3) - 0.3)).toBeLessThan(0.001)
+  expect(Math.abs(eased('ease-in-out', 0.5) - 0.5)).toBeLessThan(0.001)
+  expect(eased('ease-out', 0.5)).toBeGreaterThan(0.5)
+  expect(eased('steps(2)', 0.7)).toBe(0.5)
+  expect(eased('steps(1)', 0.99)).toBe(0)
+  expect(between('translate(0,0)', 'translate(2px,-4px)', 0.5)).toBe('translate(1px,-2px)')
+  expect(between('none', 'rotate(10deg)', 0.5)).toBe('rotate(5deg)')
+  expect(between('scale(1)', 'scale(1.04,.94)', 0.5)).toBe('scale(1.02,0.97)')
+  expect(between('1', '0', 0.25)).toBe('0.75')
 })
 
-test('every exit is filled in, wherever it cuts in', () => {
+test('an exit eases each part from where the loop had it, straight to standing', () => {
+  // Cut in at the loop's start: every part is already standing.
+  const standing = (t: string) => [...t.matchAll(/(\w+)\(([^)]*)\)/g)].every(([, f, args]) => (args ?? '').split(',').every(a => parseFloat(a) === (f?.startsWith('scale') ? 1 : 0)))
+  const poses = [...exitFrame('listening-out', 0).svg.matchAll(/from\{transform:([^}]*)\}/g)].map(m => m[1] ?? '')
+  expect(poses.length).toBeGreaterThan(5)
+  expect(poses.every(standing)).toBe(true)
+  // Searching cut in while Clawd stands forward at the glass (32% to 66%): it eases back from there.
+  expect(exitFrame('searching-out', 2000).svg).toContain('from{transform:translateX(4px)}')
+  // Doom scrolling's thumb is mid-flick at 12%: the arm comes back from there, not from its grip.
+  expect(exitFrame('scrolling-out', 480).svg).toContain('from{transform:translate(-3px,1px)}')
+})
+
+test('every exit is filled in and short, wherever it cuts in', () => {
   for (const frame of Object.keys(EXITS)) {
     for (const elapsed of [0, 333, 1250, 2900, 6100, 47_123]) {
       const { svg, ms } = exitFrame(frame, elapsed)
       expect(svg).not.toContain('__')
-      expect(ms).toBeGreaterThanOrEqual(700)
-      expect(ms).toBeLessThanOrEqual(8000 + 350)
+      expect(svg).not.toContain('NaN')
+      expect(ms).toBeGreaterThanOrEqual(450)
+      expect(ms).toBeLessThanOrEqual(700)
     }
   }
 })
