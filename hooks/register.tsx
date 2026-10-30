@@ -1,16 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { AnimId, Frame, Motion, Scene, WaitItem } from '../types'
+import type { AnimId, Frame, Scene, Screen, Showing, WaitItem } from '../types'
 import type { Part } from './sprites'
 import { EXITS, SPRITES } from './sprites'
 
 const waiting = atom({ plugin: 'clawd-watch', key: 'waiting' } as const, [] as WaitItem[])
 // When Claude last went quiet with work still running, and how that quiet stretch opens.
 const scene = atom({ plugin: 'clawd-watch', key: 'scene' } as const, null as Scene | null)
-const shown = atom({ plugin: 'clawd-watch', key: 'shown' } as const, 'listening' as Frame)
-// When the frame on screen started, and for an exit, how far into its loop it cut in.
-const motion = atom({ plugin: 'clawd-watch', key: 'motion' } as const, { since: 0, elapsed: 0 } as Motion)
+// The frame on screen, with when it started, in one value: a redraw never sees one without the other.
+const screen = atom({ plugin: 'clawd-watch', key: 'screen' } as const, { frame: 'listening', since: 0, elapsed: 0, slot: 0 } as Screen)
 // Whether Claude has been quiet long enough for Clawd to show.
 const resting = atom({ plugin: 'clawd-watch', key: 'resting' } as const, false)
 
@@ -43,6 +42,25 @@ const GLOW_MS = 1100
 export function inPhase(svg: string, since: number): string {
   if (!svg.includes('class="glow"')) return svg
   return svg.replace('</style>', `[id^=clawd-] .glow{animation-delay:-${since % GLOW_MS}ms !important}</style>`)
+}
+
+// The SVG a frame draws.
+export function drawing({ frame, since, elapsed }: Showing): string {
+  const svg = frame.endsWith('-out') ? exitFrame(frame, elapsed).svg : (SPRITES[frame] ?? SPRITES.listening ?? '')
+  return inPhase(svg, since)
+}
+
+// The desktop app draws each SVG in a frame of its own, which is blank until it loads, and
+// it keeps a frame only while its SVG stays the same. So each switch draws the new frame
+// in the other layer and leaves the old one underneath for a moment.
+const UNDERLAY_MS = 200
+
+// What each of the two layers draws.
+export function slots(s: Screen): [string | null, string | null] {
+  const out: [string | null, string | null] = [null, null]
+  if (s.prior) out[s.prior.slot] = drawing(s.prior)
+  out[s.slot] = drawing(s)
+  return out
 }
 
 // Animations that share a prop switch straight to each other, the prop staying put.
@@ -287,8 +305,7 @@ async function quiet($: EngineInterface, taskEnded: boolean): Promise<void> {
   await update($, scene, () => ({ since, opener }))
   // A fresh stretch shows its opener at once; one carried on reaches it through an exit.
   if (!current) {
-    await update($, shown, () => opener)
-    await update($, motion, () => ({ since, elapsed: 0 }))
+    await update($, screen, () => ({ frame: opener, since, elapsed: 0, slot: 0 }))
   }
 }
 
@@ -302,7 +319,7 @@ async function trace($: EngineInterface, note?: string): Promise<void> {
   const now = await $.clock.now()
   const items = await read($, waiting)
   const current = await read($, scene)
-  const state = `frame=${await read($, shown)} scene=${current ? `${current.opener}@${Math.round((now - current.since) / 1000)}s` : 'none'} waiting=[${items.map(i => i.label).join(' | ')}]`
+  const state = `frame=${(await read($, screen)).frame} scene=${current ? `${current.opener}@${Math.round((now - current.since) / 1000)}s` : 'none'} waiting=[${items.map(i => i.label).join(' | ')}]`
   // The scene's age moves every tick: only the rest of the state counts as a change.
   const key = state.replace(/@\d+s/, '')
   if (!note && key === traced.last) return
@@ -376,16 +393,18 @@ export const register: Register = on => {
       if (!current || items.length === 0 || busy) return
       const t = await $.clock.now()
       const target = pickAnimation(items, t - current.since, current.opener, t)
-      const now = await read($, shown)
-      const playing = await read($, motion)
-      // An exit runs until its loop has come home and its props have left.
+      const playing = await read($, screen)
+      const now = playing.frame
+      // An exit runs until its props have left and Clawd stands.
       if (now.endsWith('-out') && t < playing.since + exitFrame(now, playing.elapsed).ms) return
       const frame = nextFrame(now, target)
       // Write only on a change, so the drawing is not redrawn (and restarted) every second.
       if (frame === now) return
       const elapsed = frame.endsWith('-out') ? t - playing.since : 0
-      await update($, motion, () => ({ since: t, elapsed }))
-      await update($, shown, () => frame)
+      const { prior: _, ...before } = playing
+      await update($, screen, () => ({ frame, since: t, elapsed, slot: before.slot === 0 ? 1 : 0, prior: before }))
+      // The frame before stays underneath until the new one has loaded, then goes.
+      $.clock.after(UNDERLAY_MS, () => void update($, screen, s => (s.since === t && s.prior ? { ...s, prior: undefined } : s)).catch(() => {}))
       // The next animation comes in the moment the exit is over, not at the next tick,
       // so Clawd never stands about between the two.
       if (frame.endsWith('-out')) $.clock.after(exitFrame(frame, elapsed).ms + EXIT_SLACK_MS, () => void step().catch(() => {}))
@@ -463,14 +482,19 @@ export const register: Register = on => {
       return <Text color={CLAY}>[o_o] {text}…</Text>
     }
 
-    const frame = await read($, shown)
-    const { since, elapsed } = await read($, motion)
-    const svg = frame.endsWith('-out') ? exitFrame(frame, elapsed).svg : (SPRITES[frame] ?? SPRITES.listening ?? '')
-    const source = inPhase(svg, since)
+    const layers = slots(await read($, screen))
     const { Box, Text, Svg } = $.ui.resolve(e)
+    // Both layers are always there, so a frame keeps its place (and its drawing) while
+    // the other layer changes. The alt text stays the same for the same reason.
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Svg source={source} alt={`Clawd: ${text}`} width={80} height={55} isInteractive />
+        <Box position="relative" width={80} height={55}>
+          {layers.map((source, i) => (
+            <Box key={`layer${i}`} position="absolute" top={0} left={0} width={80} height={55}>
+              {source ? <Svg source={source} alt="Clawd" width={80} height={55} isInteractive /> : null}
+            </Box>
+          ))}
+        </Box>
         <Text color={CLAY} weight="medium">
           {text}…
         </Text>

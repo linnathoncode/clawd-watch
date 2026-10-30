@@ -14,11 +14,16 @@ export type WaitItem = { id: string; kind: string; label: string; hint: string; 
 // A quiet stretch: when Claude went quiet with work running, and the animation it opens with.
 export type Scene = { since: number; opener: 'wave' | 'hop' }
 
-// The frame on screen: when it started, and for an exit, how far into its loop it cut in (ms).
-export type Motion = { since: number; elapsed: number }
+// A frame Clawd shows: when it started, and for an exit, how far into its loop it cut in (ms).
+// `slot` is which of the two layers it is drawn in.
+export type Showing = { frame: Frame; since: number; elapsed: number; slot: 0 | 1 }
+
+// The frame on screen, and for a moment after a switch, the one before it, still drawn
+// underneath while the new one loads.
+export type Screen = Showing & { prior?: Showing }
 
 declare module 'claude-code' {
   interface PluginState {
-    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; shown: Frame; motion: Motion; resting: boolean }
+    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; screen: Screen; resting: boolean }
   }
 }

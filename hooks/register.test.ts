@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { between, describeWaiting, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, taskAnimation } from './register'
+import { between, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, slots, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
@@ -125,6 +125,15 @@ test('every exit is filled in and short, wherever it cuts in', () => {
       expect(ms).toBeLessThanOrEqual(700)
     }
   }
+})
+
+test('a switch keeps the old frame underneath, untouched, while the new one loads', () => {
+  const before = { frame: 'listening', since: 1000, elapsed: 0, slot: 0 as const }
+  const after = { frame: 'listening-out', since: 5000, elapsed: 4000, slot: 1 as const }
+  expect(slots(before)).toEqual([drawing(before), null])
+  // The old frame keeps its layer and its exact SVG, so the app keeps its drawing running.
+  expect(slots({ ...after, prior: before })).toEqual([drawing(before), drawing(after)])
+  expect(slots(after)).toEqual([null, drawing(after)])
 })
 
 test('reads a field from a result, whatever else it carries', () => {
