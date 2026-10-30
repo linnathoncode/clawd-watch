@@ -54,6 +54,7 @@ export function drawing({ frame, since, elapsed }: Showing): string {
 // it keeps a frame only while its SVG stays the same. So each switch draws the new frame
 // in the other layer and leaves the old one underneath for a moment.
 const UNDERLAY_MS = 200
+const BLANK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 22"/>'
 
 // What each of the two layers draws.
 export function slots(s: Screen): [string | null, string | null] {
@@ -485,12 +486,14 @@ export const register: Register = on => {
     const layers = slots(await read($, screen))
     const { Box, Text, Svg } = $.ui.resolve(e)
     // Both layers are always there, so a frame keeps its place (and its drawing) while
-    // the other layer changes. The alt text stays the same for the same reason.
+    // the other layer changes. The alt text stays the same for the same reason. A Box
+    // measures in characters and lines, so a blank SVG gives the stack its size in pixels.
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Box position="relative" width={80} height={55}>
+        <Box position="relative">
+          <Svg source={BLANK} alt="Clawd" width={80} height={55} />
           {layers.map((source, i) => (
-            <Box key={`layer${i}`} position="absolute" top={0} left={0} width={80} height={55}>
+            <Box key={`layer${i}`} position="absolute" top={0} left={0}>
               {source ? <Svg source={source} alt="Clawd" width={80} height={55} isInteractive /> : null}
             </Box>
           ))}
