@@ -263,6 +263,11 @@ export function finishedTasks(text: string): string[] {
 
 const ENDED = /completed|failed|killed|stopped/
 
+// The text of a queued row's blocks.
+export function queuedText(blocks: readonly unknown[]): string {
+  return blocks.map(b => (b && typeof b === 'object' && 'text' in b && typeof b.text === 'string' ? b.text : '')).join('\n')
+}
+
 // True when `item` is the task one of `ids` names: by its tool call, task id or agent id.
 export function names(item: WaitItem, ids: readonly string[]): boolean {
   return [item.id, item.taskId, item.agentId].some(id => id !== undefined && ids.includes(id))
@@ -430,6 +435,17 @@ export const register: Register = on => {
   on('session.receive', async ($, e, next) => {
     if (e.origin.kind === 'task-notification' && (await finish($, e.text))) taskEnded = true
     return next(e)
+  })
+
+  // A task stopped while Claude is idle sends its notice to the queue, where it waits for
+  // the next prompt: Clawd reads it the moment it is queued, not when it is delivered.
+  on('session.append', { door: 'queue' }, async ($, e, next) => {
+    const result = await next(e)
+    if (!e.agentId) {
+      const text = queuedText(e.message.content)
+      if (text.includes('<task-notification>') && (await finish($, text).catch(() => false))) taskEnded = true
+    }
+    return result
   })
 
   on('turn.start', async ($, e, next) => {

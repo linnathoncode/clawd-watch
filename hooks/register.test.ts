@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { between, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, slots, taskAnimation } from './register'
+import { between, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, queuedText, slots, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
@@ -151,6 +151,12 @@ test('a task is named by its tool call, task id or agent id', () => {
   expect(names(agent, ['a9'])).toBe(true)
   expect(names(cmd, ['bnlzmv5ql'])).toBe(true)
   expect(names(cmd, ['a9', 'toolu_1'])).toBe(false)
+})
+
+test('a task stopped while Claude is idle ends when its notice is queued', () => {
+  const killed = '<task-notification>\n<task-id>brihimgev</task-id>\n<tool-use-id>toolu_011</tool-use-id>\n<status>killed</status>\n<summary>Task "Run local server" was stopped</summary>\n</task-notification>'
+  const text = queuedText([{ type: 'text', text: killed }, { type: 'image' }])
+  expect(finishedTasks(text)).toEqual(['toolu_011', 'brihimgev'])
 })
 
 test('an agent hand-back message is its end', () => {
