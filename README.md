@@ -34,11 +34,9 @@ in the terminal.
 
 ## Install
 
-At the prompt of a Claude Code terminal session:
-
-```
-/plugin install clawd-watch --marketplace linnathoncode/clawd-watch
-```
+In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
+with `linnathoncode/clawd-watch`, then **Add plugin**. (`/plugin` does not work in the app's
+prompt box: it opens a terminal dialog the app cannot show.)
 
 From a shell:
 
@@ -46,8 +44,17 @@ From a shell:
 claude plugin install clawd-watch --marketplace linnathoncode/clawd-watch
 ```
 
-In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
-with `linnathoncode/clawd-watch`, then **Add plugin**.
+If your Claude Code does not know `--marketplace`, add the marketplace first:
+
+```bash
+claude plugin marketplace add linnathoncode/clawd-watch
+```
+
+```bash
+claude plugin install clawd-watch@clawd-watch
+```
+
+Start a new session afterwards; Clawd needs a recent Claude Code.
 
 To update:
 
