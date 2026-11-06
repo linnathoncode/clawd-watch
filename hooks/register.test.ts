@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
-import { between, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, nextFrame, names, pickAnimation, queuedText, slots, taskAnimation } from './register'
+import { among, between, describeTask, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, markFor, nextFrame, names, pickAnimation, queuedText, shownTask, slots, stepPick, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
+import { MINIS } from './minis'
 
 const shell = { id: 'a', kind: 'shell', label: 'Start the dev server', hint: 'Start the dev server npm run dev', since: 0 }
 const search = { id: 'b', kind: 'shell', label: 'Find auth files', hint: 'Find auth files rg auth src', since: 0 }
@@ -166,4 +167,76 @@ test('an agent hand-back message is its end', () => {
   done
 </agent-message>`
   expect(finishedTasks(handback)).toEqual(['a2d636191cc997101'])
+})
+
+test('the band shows the picked task until the tasks change', () => {
+  const items = [agentThink, monitor, server]
+  // Nothing picked: the newest task Claude waits on, not the server.
+  expect(shownTask(items, null)?.id).toBe('e')
+  expect(shownTask([server], null)?.id).toBe('f')
+  // ‹ › go round all the tasks, servers included.
+  const back = stepPick(items, null, -1)
+  expect(back).toEqual({ id: 'd', among: among(items) })
+  expect(shownTask(items, back)?.id).toBe('d')
+  expect(shownTask(items, stepPick(items, back, -1))?.id).toBe('f')
+  expect(shownTask(items, stepPick(items, null, 1))?.id).toBe('f')
+  // A task starting or ending drops the pick.
+  expect(shownTask([...items, agentWrite], back)?.id).toBe('c')
+  expect(shownTask([agentThink, monitor], back)?.id).toBe('e')
+  // One task: nothing to step through.
+  expect(stepPick([monitor], null, 1)).toBe(null)
+})
+
+test('describes one task, and Clawd follows the task shown', () => {
+  expect(describeTask(agentThink)).toBe('Waiting on agent: Review the plan')
+  expect(describeTask(server)).toBe('Running in background: Start the dev server')
+  expect(pickAnimation([agentWrite, search], 10_000, 'wave', undefined, agentWrite)).toBe('writing')
+  expect(pickAnimation([agentWrite, search], 10_000, 'wave')).toBe('searching')
+  expect(pickAnimation([agentWrite, server], 10_000, 'wave', undefined, server)).toBe('idle')
+  // The opener, boredom and sleep do not depend on the task.
+  expect(pickAnimation([agentWrite], 1000, 'hop', undefined, agentWrite)).toBe('hop')
+  expect(pickAnimation([agentWrite], 4 * 60_000, 'wave', undefined, agentWrite)).toBe('sleeping')
+})
+
+test('the slim band has a mark for every kind of task', async () => {
+  for (const item of [agentThink, agentWrite, monitor]) {
+    expect(MINIS[markFor(item)]).toBeTruthy()
+  }
+  expect(markFor(agentWrite)).toBe('writing')
+  expect(markFor(monitor)).toBe('listening')
+})
+
+test('the desktop band draws, opens and shrinks, and steps through tasks', async ($, on) => {
+  // Two tasks running and Claude quiet, answered beneath the plugin (a call on $ is answered
+  // as { value: <its result> }).
+  on('state.get', async ($, e, next) => {
+    if (e.plugin === 'clawd-watch' && e.key === 'waiting') return { value: { value: [agentThink, monitor], version: 1 } } as never
+    if (e.plugin === 'clawd-watch' && e.key === 'resting') return { value: { value: true, version: 1 } } as never
+    return next(e)
+  })
+  on('clock.now', async () => ({ value: 100_000 }) as never)
+  const ui = await $.ui.mount({
+    plugin: 'clawd-watch', surface: 'desktop', component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0 } as never, view: {} as never },
+  })
+  const text = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' | ')
+  expect(await text()).toContain('Waiting on monitor: CI…')
+  expect(await text()).toContain('2/2')
+  await ui.press({ key: 'prev' })
+  expect(await text()).toContain('Waiting on agent: Review the plan…')
+  expect(await text()).toContain('1/2')
+  // Full by default: the arrow shrinks it, and the mini Clawd takes the place of the big one.
+  const sizes = async () => (await ui.findAll({ type: 'Svg' })).map(s => s.props.width)
+  expect(await sizes()).toContain(80)
+  await ui.press({ key: 'toggle' })
+  expect(await sizes()).toContain(32)
+  expect(await sizes()).not.toContain(80)
+  // The slim band draws the shown task's abstract mark, not Clawd, and it follows the task.
+  const sources = async () => (await ui.findAll({ type: 'Svg' })).map(s => String(s.props.source)).join(' ')
+  expect(await sources()).toContain('mini-thinking')
+  expect(await sources()).not.toContain('clawd-')
+  await ui.press({ key: 'next' })
+  expect(await sources()).toContain('mini-listening')
+  await ui.press({ key: 'toggle' })
+  expect(await sizes()).toContain(80)
 })

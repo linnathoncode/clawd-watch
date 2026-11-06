@@ -1,8 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { AnimId, Frame, Scene, Screen, Showing, WaitItem } from '../types'
+import type { AnimId, Frame, Pick, Scene, Screen, Showing, View, WaitItem } from '../types'
 import type { Part } from './sprites'
+import { MINIS } from './minis'
 import { EXITS, SPRITES } from './sprites'
 
 const waiting = atom({ plugin: 'clawd-watch', key: 'waiting' } as const, [] as WaitItem[])
@@ -12,6 +13,10 @@ const scene = atom({ plugin: 'clawd-watch', key: 'scene' } as const, null as Sce
 const screen = atom({ plugin: 'clawd-watch', key: 'screen' } as const, { frame: 'listening', since: 0, elapsed: 0, slot: 0 } as Screen)
 // Whether Claude has been quiet long enough for Clawd to show.
 const resting = atom({ plugin: 'clawd-watch', key: 'resting' } as const, false)
+// The full card or the slim band; kept in the store too, so new sessions open the same way.
+const view = atom({ plugin: 'clawd-watch', key: 'view' } as const, 'full' as View)
+// The task picked with ‹ ›, if any.
+const picked = atom({ plugin: 'clawd-watch', key: 'pick' } as const, null as Pick | null)
 
 const CLAY = '#D97757'
 
@@ -54,6 +59,17 @@ export function drawing({ frame, since, elapsed }: Showing): string {
 // it keeps a frame only while its SVG stays the same. So each switch draws the new frame
 // in the other layer and leaves the old one underneath for a moment.
 const UNDERLAY_MS = 200
+// Clawd's size in the full card, and the mini one in the slim band: one screen pixel per
+// sprite pixel, so it stays crisp.
+const FULL = { width: 80, height: 55 }
+const MINI = { width: 32, height: 22 }
+// The slim band's mark for a task: its own animation, drawn abstract, with none of the
+// openers, breaks, exits or long-wait scenes the full card plays.
+export function markFor(item: WaitItem, now?: number): AnimId {
+  return isAmbient(item, now) ? 'idle' : taskAnimation(item)
+}
+// The strip's shade, top to bottom: black at a low alpha reads on light and dark themes.
+const SHADE = [0.06, 0.04, 0.022, 0.008]
 const BLANK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 22"/>'
 
 // What each of the two layers draws.
@@ -96,15 +112,17 @@ export function taskAnimation(item: WaitItem | undefined): AnimId {
 
 // The animation to show `elapsed` ms into a quiet stretch that opened with `opener`.
 // `now` lets a long-running command count as running alongside.
-export function pickAnimation(items: readonly WaitItem[], elapsed: number, opener: Scene['opener'], now?: number): AnimId {
+// `lead` is the task the band shows, when one was picked with ‹ ›.
+export function pickAnimation(items: readonly WaitItem[], elapsed: number, opener: Scene['opener'], now?: number, lead?: WaitItem): AnimId {
   if (elapsed < OPENER_MS) return opener
   if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
   if (elapsed >= SCROLL_AFTER_MS) return 'scrolling'
   // The newest task Claude waits on leads: it is the one Claude most likely stopped for.
-  // With only servers and watchers running, Clawd just idles.
+  // With only servers and watchers running (or one of them shown), Clawd just idles.
   const awaited = items.filter(i => !isAmbient(i, now))
-  if (awaited.length === 0) return 'idle'
-  const task = taskAnimation(awaited[awaited.length - 1])
+  const first = lead ?? awaited[awaited.length - 1]
+  if (!first || isAmbient(first, now)) return 'idle'
+  const task = taskAnimation(first)
   // A break from writing is a stretch at the laptop; the others take the headphones off or
   // put the magnifier down and scratch their head.
   const pause = BREAKS[task]
@@ -233,6 +251,32 @@ export function describeWaiting(items: readonly WaitItem[], now?: number): strin
   return `Waiting on ${what}${extra.length ? ` (${extra.join(', ')})` : ''}`
 }
 
+// One task, as the band says it.
+export function describeTask(item: WaitItem, now?: number): string {
+  return isAmbient(item, now) ? `Running in background: ${item.label}` : `Waiting on ${KIND[item.kind] ?? item.kind}: ${item.label}`
+}
+
+// The tasks a pick was made among: a task starting or ending makes the pick stale, and the
+// band goes back to the newest task.
+export const among = (items: readonly WaitItem[]) => items.map(i => i.id).join(' ')
+
+// The task the band shows: the one picked with ‹ ›, else the newest one Claude waits on
+// (with only servers running, the newest server).
+export function shownTask(items: readonly WaitItem[], pick: Pick | null, now?: number): WaitItem | undefined {
+  const chosen = pick && pick.among === among(items) ? items.find(i => i.id === pick.id) : undefined
+  if (chosen) return chosen
+  const awaited = items.filter(i => !isAmbient(i, now))
+  return awaited[awaited.length - 1] ?? items[items.length - 1]
+}
+
+// The pick `by` tasks on from the one shown, going round.
+export function stepPick(items: readonly WaitItem[], pick: Pick | null, by: number, now?: number): Pick | null {
+  const current = shownTask(items, pick, now)
+  if (items.length < 2 || !current) return null
+  const next = items[mod(items.indexOf(current) + by, items.length)]
+  return next ? { id: next.id, among: among(items) } : null
+}
+
 const short = (text: string) => {
   const line = (text.split(/\r?\n/)[0] ?? '').trim()
   return line.length > 60 ? `${line.slice(0, 57)}...` : line
@@ -311,7 +355,7 @@ async function quiet($: EngineInterface, taskEnded: boolean): Promise<void> {
   await update($, scene, () => ({ since, opener }))
   // A fresh stretch shows its opener at once; one carried on reaches it through an exit.
   if (!current) {
-    await update($, screen, () => ({ frame: opener, since, elapsed: 0, slot: 0 }))
+    await update($, screen, (): Screen => ({ frame: opener, since, elapsed: 0, slot: 0 }))
   }
 }
 
@@ -388,6 +432,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await update($, waiting, () => [])
     await update($, scene, () => null)
+    await update($, picked, () => null)
+    const saved = await $.store.get('view').catch(() => undefined)
+    await update($, view, () => (saved === 'compact' ? 'compact' : 'full'))
     await $.command.register({ name: 'clawd-reset', description: 'Clear the background work Clawd is waiting on' })
 
     // Moves Clawd on to its next frame, if it is time.
@@ -398,7 +445,7 @@ export const register: Register = on => {
       if (current && items.length === 0) await update($, scene, () => null)
       if (!current || items.length === 0 || busy) return
       const t = await $.clock.now()
-      const target = pickAnimation(items, t - current.since, current.opener, t)
+      const target = pickAnimation(items, t - current.since, current.opener, t, shownTask(items, await read($, picked), t))
       const playing = await read($, screen)
       const now = playing.frame
       // An exit runs until its props have left and Clawd stands.
@@ -408,7 +455,7 @@ export const register: Register = on => {
       if (frame === now) return
       const elapsed = frame.endsWith('-out') ? t - playing.since : 0
       const { prior: _, ...before } = playing
-      await update($, screen, () => ({ frame, since: t, elapsed, slot: before.slot === 0 ? 1 : 0, prior: before }))
+      await update($, screen, (): Screen => ({ frame, since: t, elapsed, slot: before.slot === 0 ? 1 : 0, prior: before }))
       // The frame before stays underneath until the new one has loaded, then goes.
       $.clock.after(UNDERLAY_MS, () => void update($, screen, s => (s.since === t && s.prior ? { ...s, prior: undefined } : s)).catch(() => {}))
       // The next animation comes in the moment the exit is over, not at the next tick,
@@ -493,30 +540,78 @@ export const register: Register = on => {
     const items = await read($, waiting)
     if (e.props.hasSurvey || e.props.isWorking || items.length === 0 || !(await read($, resting))) return next(e)
 
-    const text = describeWaiting(items, await $.clock.now())
+    const now = await $.clock.now()
     if (e.surface === 'terminal') {
       const { Text } = $.ui.resolve(e)
-      return <Text color={CLAY}>[o_o] {text}…</Text>
+      return <Text color={CLAY}>[o_o] {describeWaiting(items, now)}…</Text>
     }
 
-    const layers = slots(await read($, screen))
-    const { Box, Text, Svg } = $.ui.resolve(e)
-    // Both layers are always there, so a frame keeps its place (and its drawing) while
-    // the other layer changes. The alt text stays the same for the same reason. A Box
-    // measures in characters and lines, so a blank SVG gives the stack its size in pixels.
+    const lead = shownTask(items, await read($, picked), now)
+    if (!lead) return next(e)
+    const compact = (await read($, view)) === 'compact'
+    const size = compact ? MINI : FULL
+    const count = items.length > 1 ? `${items.indexOf(lead) + 1}/${items.length}` : ''
+    const layers = compact ? [] : slots(await read($, screen))
+    const mark = compact ? (MINIS[markFor(lead, now)] ?? MINIS.idle) : undefined
+    const { Box, Text, Svg, Button } = $.ui.resolve(e)
+
+    const toggle = () => {
+      const nextView: View = compact ? 'full' : 'compact'
+      void update($, view, () => nextView).catch(() => {})
+      void $.store.set('view', nextView).catch(() => {})
+    }
+    // Reads the tasks afresh: the drawing that made the button may be a moment old.
+    const move = (by: number) => () =>
+      void (async () => {
+        const all = await read($, waiting)
+        const t = await $.clock.now()
+        await update($, picked, p => stepPick(all, p, by, t))
+      })().catch(() => {})
+
+    // The band is one hover scope (its key). The strip along the top keeps its row; on hover
+    // its slices shade, fading downwards, and the arrow that opens or shrinks the band shows.
+    // ‹ › show the same way. Both layers of Clawd are always there, so a frame keeps its place
+    // (and its drawing) while the other layer changes; a Box measures in characters and
+    // lines, so a blank SVG gives the stack its size in pixels. The slim band draws the
+    // task's mark instead, which changes only with the task.
     return (
-      <Box flexDirection="row" alignItems="center" gap={1}>
-        <Box position="relative">
-          <Svg source={BLANK} alt="Clawd" width={80} height={55} />
-          {layers.map((source, i) => (
-            <Box key={`layer${i}`} position="absolute" top={0} left={0}>
-              {source ? <Svg source={source} alt="Clawd" width={80} height={55} isInteractive /> : null}
-            </Box>
+      <Box key="clawd" flexDirection="column">
+        <Box position="relative" flexDirection="column" height={1}>
+          {SHADE.map((alpha, i) => (
+            <Box key={`shade${i}`} width="100%" height={1 / SHADE.length} hover={{ backgroundColor: `rgba(0,0,0,${alpha})` }} />
           ))}
+          <Box position="absolute" top={0} left={0} width="100%" height={1} justifyContent="center" display="none" hover={{ display: 'flex' }}>
+            <Button key="toggle" label={compact ? '︽' : '︾'} plain dimColor onPress={toggle} />
+          </Box>
         </Box>
-        <Text color={CLAY} weight="medium">
-          {text}…
-        </Text>
+        <Box flexDirection="row" alignItems="center" gap={1}>
+          <Box position="relative">
+            <Svg source={BLANK} alt="Clawd" width={size.width} height={size.height} />
+            {layers.map((source, i) => (
+              <Box key={`layer${i}`} position="absolute" top={0} left={0}>
+                {source ? <Svg source={source} alt="Clawd" width={size.width} height={size.height} isInteractive /> : null}
+              </Box>
+            ))}
+            {mark ? (
+              <Box key="mark" position="absolute" top={0} left={0}>
+                <Svg source={mark} alt="Clawd" width={size.width} height={size.height} isInteractive />
+              </Box>
+            ) : null}
+          </Box>
+          <Box flexShrink={1} minWidth={0}>
+            <Text color={CLAY} weight="medium" wrap={compact ? 'truncate-end' : 'wrap'}>
+              {describeTask(lead, now)}…
+            </Text>
+          </Box>
+          {count ? <Text dimColor>{count}</Text> : null}
+          {count ? <Box flexGrow={1} /> : null}
+          {count ? (
+            <Box display="none" hover={{ display: 'flex' }}>
+              <Button key="prev" label="‹" plain dimColor onPress={move(-1)} />
+              <Button key="next" label="›" plain dimColor onPress={move(1)} />
+            </Box>
+          ) : null}
+        </Box>
       </Box>
     )
   })

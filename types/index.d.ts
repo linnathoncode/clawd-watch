@@ -22,8 +22,14 @@ export type Showing = { frame: Frame; since: number; elapsed: number; slot: 0 | 
 // underneath while the new one loads.
 export type Screen = Showing & { prior?: Showing }
 
+// How the band draws in the desktop app: the full card, or a slim line with a mini Clawd.
+export type View = 'full' | 'compact'
+
+// The task picked with ‹ ›, and the tasks it was picked among (their ids, in order).
+export type Pick = { id: string; among: string }
+
 declare module 'claude-code' {
   interface PluginState {
-    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; screen: Screen; resting: boolean }
+    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; screen: Screen; resting: boolean; view: View; pick: Pick | null }
   }
 }

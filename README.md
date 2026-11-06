@@ -32,6 +32,16 @@ plain standing pose; the next one then pops in with its own props.
 It draws as an animated SVG in the Claude desktop app and as a one-line text badge
 in the terminal.
 
+In the desktop app, hovering the band shows a few more controls:
+
+- **︾ / ︽** on a shaded strip along the top shrinks the card to a slim line, or opens it again.
+  The slim line swaps Clawd for a small abstract mark for the kind of task: an equaliser for commands
+  and monitors, three dots for thinking, lines being written for a writing agent, a sweeping ring for
+  a search, a slow pulse for servers. The choice is kept for new sessions.
+- **‹ ›** step through the tasks when there is more than one. A `1/3` counter beside the text says
+  which one is shown, and Clawd (or the mark) follows the task shown. When a task starts or ends,
+  the band goes back to the newest one.
+
 ## Install
 
 In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
@@ -92,6 +102,12 @@ The hooks module is `hooks/register.tsx`. The animations are drawn in `sheet/cla
 
 ```bash
 node scripts/build-sprites.mjs
+```
+
+The slim band's marks are drawn in `sheet/minis.js`; `hooks/minis.ts` is built from it:
+
+```bash
+node scripts/build-minis.mjs
 ```
 
 The build also writes this README's previews (`docs/previews`) and `sheet/frames.js` for
