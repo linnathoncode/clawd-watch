@@ -68,8 +68,6 @@ const MINI = { width: 32, height: 22 }
 export function markFor(item: WaitItem, now?: number): AnimId {
   return isAmbient(item, now) ? 'idle' : taskAnimation(item)
 }
-// The strip's shade, top to bottom: black at a low alpha reads on light and dark themes.
-const SHADE = [0.06, 0.04, 0.022, 0.008]
 const BLANK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 22"/>'
 
 // What each of the two layers draws.
@@ -568,49 +566,40 @@ export const register: Register = on => {
         await update($, picked, p => stepPick(all, p, by, t))
       })().catch(() => {})
 
-    // The band is one hover scope (its key). The strip along the top keeps its row; on hover
-    // its slices shade, fading downwards, and the arrow that opens or shrinks the band shows.
-    // ‹ › show the same way. Both layers of Clawd are always there, so a frame keeps its place
-    // (and its drawing) while the other layer changes; a Box measures in characters and
-    // lines, so a blank SVG gives the stack its size in pixels. The slim band draws the
-    // task's mark instead, which changes only with the task.
+    // The band is one hover scope (its key), a single row. On hover the controls show at its
+    // trailing end: ‹ › when there is more than one task, and the arrow that opens or shrinks
+    // the band. They sit in the row rather than over it: rows and offsets count whole cells,
+    // and a desktop draws each Button as a native button, so an overlay strip took rows of its
+    // own and its button landed outside the card. Both layers of Clawd are always there, so a
+    // frame keeps its place (and its drawing) while the other layer changes; a Box measures
+    // in characters and lines, so a blank SVG gives the stack its size in pixels. The slim
+    // band draws the task's mark instead, which changes only with the task.
     return (
-      <Box key="clawd" flexDirection="column">
-        <Box position="relative" flexDirection="column" height={1}>
-          {SHADE.map((alpha, i) => (
-            <Box key={`shade${i}`} width="100%" height={1 / SHADE.length} hover={{ backgroundColor: `rgba(0,0,0,${alpha})` }} />
+      <Box key="clawd" flexDirection="row" alignItems="center" gap={1}>
+        <Box position="relative">
+          <Svg source={BLANK} alt="Clawd" width={size.width} height={size.height} />
+          {layers.map((source, i) => (
+            <Box key={`layer${i}`} position="absolute" top={0} left={0}>
+              {source ? <Svg source={source} alt="Clawd" width={size.width} height={size.height} isInteractive /> : null}
+            </Box>
           ))}
-          <Box position="absolute" top={0} left={0} width="100%" height={1} justifyContent="center" display="none" hover={{ display: 'flex' }}>
-            <Button key="toggle" label={compact ? '︽' : '︾'} plain dimColor onPress={toggle} />
-          </Box>
-        </Box>
-        <Box flexDirection="row" alignItems="center" gap={1}>
-          <Box position="relative">
-            <Svg source={BLANK} alt="Clawd" width={size.width} height={size.height} />
-            {layers.map((source, i) => (
-              <Box key={`layer${i}`} position="absolute" top={0} left={0}>
-                {source ? <Svg source={source} alt="Clawd" width={size.width} height={size.height} isInteractive /> : null}
-              </Box>
-            ))}
-            {mark ? (
-              <Box key="mark" position="absolute" top={0} left={0}>
-                <Svg source={mark} alt="Clawd" width={size.width} height={size.height} isInteractive />
-              </Box>
-            ) : null}
-          </Box>
-          <Box flexShrink={1} minWidth={0}>
-            <Text color={CLAY} weight="medium" wrap={compact ? 'truncate-end' : 'wrap'}>
-              {describeTask(lead, now)}…
-            </Text>
-          </Box>
-          {count ? <Text dimColor>{count}</Text> : null}
-          {count ? <Box flexGrow={1} /> : null}
-          {count ? (
-            <Box display="none" hover={{ display: 'flex' }}>
-              <Button key="prev" label="‹" plain dimColor onPress={move(-1)} />
-              <Button key="next" label="›" plain dimColor onPress={move(1)} />
+          {mark ? (
+            <Box key="mark" position="absolute" top={0} left={0}>
+              <Svg source={mark} alt="Clawd" width={size.width} height={size.height} isInteractive />
             </Box>
           ) : null}
+        </Box>
+        <Box flexShrink={1} minWidth={0}>
+          <Text color={CLAY} weight="medium" wrap={compact ? 'truncate-end' : 'wrap'}>
+            {describeTask(lead, now)}…
+          </Text>
+        </Box>
+        {count ? <Text dimColor>{count}</Text> : null}
+        <Box flexGrow={1} />
+        <Box display="none" hover={{ display: 'flex' }}>
+          {count ? <Button key="prev" label="‹" plain dimColor onPress={move(-1)} /> : null}
+          {count ? <Button key="next" label="›" plain dimColor onPress={move(1)} /> : null}
+          <Button key="toggle" label={compact ? '︽' : '︾'} plain dimColor onPress={toggle} />
         </Box>
       </Box>
     )

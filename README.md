@@ -34,7 +34,7 @@ in the terminal.
 
 In the desktop app, hovering the band shows a few more controls:
 
-- **︾ / ︽** on a shaded strip along the top shrinks the card to a slim line, or opens it again.
+- **︾ / ︽** at the right end of the band shrinks the card to a slim line, or opens it again.
   The slim line swaps Clawd for a small abstract mark for the kind of task: an equaliser for commands
   and monitors, three dots for thinking, lines being written for a writing agent, a sweeping ring for
   a search, a slow pulse for servers. The choice is kept for new sessions.
