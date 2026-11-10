@@ -28,8 +28,11 @@ export type View = 'full' | 'compact'
 // The task picked with ‹ ›, and the tasks it was picked among (their ids, in order).
 export type Pick = { id: string; among: string }
 
+// The final answers of this session's main-loop turns, whitespace collapsed, newest last.
+export type Answers = string[]
+
 declare module 'claude-code' {
   interface PluginState {
-    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; screen: Screen; resting: boolean; view: View; pick: Pick | null }
+    'clawd-watch': { waiting: WaitItem[]; scene: Scene | null; screen: Screen; resting: boolean; view: View; pick: Pick | null; answers: Answers }
   }
 }
