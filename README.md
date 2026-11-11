@@ -4,11 +4,11 @@
   <img src="docs/previews/banner.svg" width="480" alt="Clawd asleep while Claude waits on npm test">
 </p>
 
-A Claude Code plugin that puts Clawd above the prompt
-while Claude is idle but still waiting on background work: a background command,
-a background agent or a Monitor listener. The text beside it says what Claude is waiting on, for example
-`Waiting on command: npm test… (+1 more)`, and it disappears when the work finishes
-and Claude picks the conversation back up.
+A Claude Code plugin made for the Claude desktop app; the terminal is only partly supported. When Claude is idle but background work is still running (a background
+command, a background agent or a Monitor listener), Clawd appears above the prompt and shows what
+Claude is waiting on, for example `Waiting on command: npm test… (+1 more)`. It disappears when the
+work finishes and Claude picks the conversation back up. clawd-watch also outlines each turn's
+[final answer](#final-answer-mark) in the transcript.
 
 What Clawd does depends on the work and on how long the wait has run:
 
@@ -24,13 +24,6 @@ What Clawd does depends on the work and on how long the wait has run:
 | every 30 seconds | takes a break: a stretch at the laptop while writing, a head scratch otherwise | <img src="docs/previews/stretch.svg" width="96" alt="Clawd stretching at the laptop"> |
 | after 90 seconds | gets bored and doom-scrolls on a phone | <img src="docs/previews/scrolling.svg" width="96" alt="Clawd scrolling on a phone"> |
 | after 3 minutes | falls asleep | <img src="docs/previews/sleeping.svg" width="96" alt="Clawd asleep"> |
-
-Clawd never cuts straight from one animation into another. The one ending puts its props
-away (the headphones lift off, the laptop drops, the magnifier lowers, the phone goes away) and Clawd settles into a
-plain standing pose; the next one then pops in with its own props.
-
-It draws as an animated SVG in the Claude desktop app and as a one-line text badge
-in the terminal.
 
 In the desktop app, hovering the band shows a few more controls:
 
