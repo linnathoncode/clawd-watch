@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { among, between, describeTask, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, markFor, nextFrame, names, pickAnimation, queuedText, shownTask, slots, stepPick, taskAnimation } from './register'
+import { isFinalAnswer, keepAnswer, among, between, describeTask, describeWaiting, drawing, eased, exitFrame, field, finishedTasks, inPhase, isAmbient, markFor, nextFrame, names, pickAnimation, queuedText, shownTask, slots, stepPick, taskAnimation } from './register'
 import { EXITS, SPRITES } from './sprites'
 import { MINIS } from './minis'
 
@@ -239,4 +239,20 @@ test('the desktop band draws, opens and shrinks, and steps through tasks', async
   expect(await sources()).toContain('mini-listening')
   await ui.press({ key: 'toggle' })
   expect(await sizes()).toContain(80)
+})
+
+test('keeps final answers and marks only their blocks', () => {
+  let list = keepAnswer([], 'Here is the\n\nanswer.')
+  list = keepAnswer(list, '   ')
+  expect(list).toEqual(['Here is the answer.'])
+  expect(isFinalAnswer(list, 'Here is the answer.')).toBe(true)
+  expect(isFinalAnswer(list, 'Checking the files now.')).toBe(false)
+  expect(isFinalAnswer(list, '')).toBe(false)
+  // An answer drawn over several blocks: its long closing block is marked, a short tail is not.
+  const long = 'Intro paragraph. ' + 'The closing paragraph explains everything that changed today.'
+  expect(isFinalAnswer(keepAnswer([], long), 'The closing paragraph explains everything that changed today.')).toBe(true)
+  expect(isFinalAnswer(list, 'answer.')).toBe(false)
+  // The same answer twice is kept once, newest last, and the list stays bounded.
+  expect(keepAnswer(['a', 'b'], 'a')).toEqual(['b', 'a'])
+  expect(Array.from({ length: 150 }, (_, i) => `n${i}`).reduce(keepAnswer, [] as string[]).length).toBe(100)
 })

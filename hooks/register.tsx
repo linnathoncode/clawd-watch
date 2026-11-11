@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { AnimId, Frame, Pick, Scene, Screen, Showing, View, WaitItem } from '../types'
+import type { AnimId, Answers, Frame, Pick, Scene, Screen, Showing, View, WaitItem } from '../types'
 import type { Part } from './sprites'
 import { MINIS } from './minis'
 import { EXITS, SPRITES } from './sprites'
@@ -17,6 +17,8 @@ const resting = atom({ plugin: 'clawd-watch', key: 'resting' } as const, false)
 const view = atom({ plugin: 'clawd-watch', key: 'view' } as const, 'full' as View)
 // The task picked with ‹ ›, if any.
 const picked = atom({ plugin: 'clawd-watch', key: 'pick' } as const, null as Pick | null)
+// The final answers of recent turns, so the transcript can mark them.
+const answers = atom({ plugin: 'clawd-watch', key: 'answers' } as const, [] as Answers)
 
 const CLAY = '#D97757'
 
@@ -379,6 +381,23 @@ async function trace($: EngineInterface, note?: string): Promise<void> {
   await $.fs.write(TRACE_LOG, `${traced.lines.join('\n')}\n`)
 }
 
+// Final answers: when a turn ends its answer is kept, and the transcript block that holds it
+// is drawn in a card, so the answer stands out from the notes written between tool calls.
+const KEEP_ANSWERS = 100
+export const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+export const keepAnswer = (list: Answers, answer: string): Answers => {
+  const a = squash(answer)
+  return a ? [...list.filter(x => x !== a), a].slice(-KEEP_ANSWERS) : list
+}
+
+// A block is a final answer when it is one whole, or the closing part of one an answer drawn
+// over several blocks ends with (long enough that a short note cannot match by chance).
+export const isFinalAnswer = (list: Answers, text: string) => {
+  const t = squash(text)
+  return t !== '' && list.some(a => a === t || (t.length > 40 && a.endsWith(t)))
+}
+
 // Where a prompt the person typed comes from: the terminal, a phone or web client, the desktop app.
 const PERSON: readonly string[] = ['composer', 'bridge', 'sdk']
 
@@ -518,6 +537,7 @@ export const register: Register = on => {
     // A background agent's turn ending is not its end: it may be waiting on work of
     // its own. Its end notice drops it.
     if (e.agentId) return result
+    if (e.reason === 'answer') await update($, answers, list => keepAnswer(list ?? [], e.answer)).catch(() => {})
 
     traced.on = await $.fs.exists('.clawd-trace').catch(() => false)
     settling?.cancel()
@@ -532,6 +552,17 @@ export const register: Register = on => {
       })().catch(() => {})
     })
     return result
+  })
+
+  // The marked answer is drawn after the turn ends: the answer is only known then.
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (e.props.isSummary || !isFinalAnswer(await read($, answers), e.props.text)) return next(e)
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column" borderStyle="round" borderColor={CLAY} paddingX={1}>
+        {await next(e)}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

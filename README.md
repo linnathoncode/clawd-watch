@@ -42,6 +42,12 @@ In the desktop app, hovering the band shows a few more controls:
   which one is shown, and Clawd (or the mark) follows the task shown. When a task starts or ends,
   the band goes back to the newest one.
 
+## Final answer mark
+
+Claude often writes short progress notes between tool calls, so the real answer can be hard to
+find. When a turn ends, clawd-watch draws its final answer inside a rounded clay-coloured border, on every surface (terminal, desktop, VS Code, mobile). The mark appears once the
+turn has ended, since only then is the answer known, and earlier turns keep theirs as you scroll back.
+
 ## Install
 
 In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**
