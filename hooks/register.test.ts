@@ -217,7 +217,7 @@ test('the desktop band draws, opens and shrinks, and steps through tasks', async
   on('clock.now', async () => ({ value: 100_000 }) as never)
   const ui = await $.ui.mount({
     plugin: 'clawd-watch', surface: 'desktop', component: 'AbovePrompt',
-    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0 } as never, view: {} as never },
+    props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0 } as never, view: {} as never },
   })
   const text = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text).join(' | ')
   expect(await text()).toContain('Waiting on monitor: CI…')
