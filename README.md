@@ -30,7 +30,8 @@ In the desktop app, hovering the band shows a few more controls:
 - **︾ / ︽** at the right end of the band shrinks the card to a slim line, or opens it again.
   The slim line swaps Clawd for a small abstract mark for the kind of task: an equaliser for commands
   and monitors, three dots for thinking, lines being written for a writing agent, a sweeping ring for
-  a search, a slow pulse for servers. The choice is kept for new sessions.
+  a search, a slow pulse for servers. Like Clawd, it moves on as the wait grows long: a phone
+  scrolling after 90 seconds, drifting z's after 3 minutes. The choice is kept for new sessions.
 - **‹ ›** step through the tasks when there is more than one. A `1/3` counter beside the text says
   which one is shown, and Clawd (or the mark) follows the task shown. When a task starts or ends,
   the band goes back to the newest one.

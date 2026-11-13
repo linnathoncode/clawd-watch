@@ -65,9 +65,12 @@ const UNDERLAY_MS = 200
 // sprite pixel, so it stays crisp.
 const FULL = { width: 80, height: 55 }
 const MINI = { width: 32, height: 22 }
-// The slim band's mark for a task: its own animation, drawn abstract, with none of the
-// openers, breaks, exits or long-wait scenes the full card plays.
-export function markFor(item: WaitItem, now?: number): AnimId {
+// The slim band's mark: the phase the full card is in, drawn abstract. The task's own
+// animation, then scrolling and sleeping as the wait grows long; the opener, breaks and exits
+// come and go too quickly for a mark, which stays on the phase they interrupt.
+export function markFor(item: WaitItem, now?: number, elapsed = 0): AnimId {
+  if (elapsed >= SLEEP_AFTER_MS) return 'sleeping'
+  if (elapsed >= SCROLL_AFTER_MS) return 'scrolling'
   return isAmbient(item, now) ? 'idle' : taskAnimation(item)
 }
 const BLANK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 22"/>'
@@ -580,8 +583,12 @@ export const register: Register = on => {
     const compact = (await read($, view)) === 'compact'
     const size = compact ? MINI : FULL
     const count = items.length > 1 ? `${items.indexOf(lead) + 1}/${items.length}` : ''
-    const layers = compact ? [] : slots(await read($, screen))
-    const mark = compact ? (MINIS[markFor(lead, now)] ?? MINIS.idle) : undefined
+    // The full card draws the frame on screen; the slim band reads it too, so it is drawn
+    // again when the phase changes, and picks its mark from how long the wait has run.
+    const playing = await read($, screen)
+    const layers = compact ? [] : slots(playing)
+    const since = (await read($, scene))?.since ?? now
+    const mark = compact ? (MINIS[markFor(lead, now, now - since)] ?? MINIS.idle) : undefined
     const { Box, Text, Svg, Button } = $.ui.resolve(e)
 
     const toggle = () => {

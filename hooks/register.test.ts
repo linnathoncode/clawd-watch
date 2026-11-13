@@ -204,6 +204,13 @@ test('the slim band has a mark for every kind of task', async () => {
   }
   expect(markFor(agentWrite)).toBe('writing')
   expect(markFor(monitor)).toBe('listening')
+  // The mark follows the long phases and skips the brief ones: no opener, no break.
+  expect(markFor(shell, undefined, 1000)).toBe('listening')
+  expect(markFor(agentWrite, undefined, 31_000)).toBe('writing')
+  expect(markFor(shell, undefined, 90_000)).toBe('scrolling')
+  expect(markFor(shell, undefined, 4 * 60_000)).toBe('sleeping')
+  expect(MINIS.scrolling).toBeTruthy()
+  expect(MINIS.sleeping).toBeTruthy()
 })
 
 test('the desktop band draws, opens and shrinks, and steps through tasks', async ($, on) => {

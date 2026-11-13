@@ -43,9 +43,21 @@
       $ .g{animation:mi-g 2.4s ease-in-out infinite}
       @keyframes mi-g{0%,100%{transform:translateX(0)}50%{transform:translateX(9px)}}`),
 
+    // Scrolling: a phone outline, its lines sliding up past the screen's edges.
+    scrolling: svg('scrolling', `
+      ${r(5, 0, 6, 1, CLAY)}${r(5, 10, 6, 1, CLAY)}${r(4, 1, 1, 9, CLAY)}${r(11, 1, 1, 9, CLAY)}
+      <svg x="5" y="1" width="6" height="9" viewBox="0 0 6 9"><g class="s">${[1, 3, 5, 7, 9, 11, 13].map((y, i) => r(1, y, i % 2 ? 3 : 4, 1, i % 3 ? DIM : LIGHT)).join('')}</g></svg>`, `
+      $ .s{transform-box:view-box;animation:mi-s 1.6s steps(4) infinite}
+      @keyframes mi-s{0%{transform:translateY(0)}100%{transform:translateY(-6px)}}`),
+
+    // Sleeping: z's drift up and fade, one after another.
+    sleeping: svg('sleeping', [0, 1, 2].map(i => `<g class="z z${i}">${r(0, 0, 4, 1, CLAY)}${r(2, 1, 1, 1, CLAY)}${r(1, 2, 1, 1, CLAY)}${r(0, 3, 4, 1, CLAY)}</g>`).join(''), `
+      $ .z{opacity:0;animation:mi-z 3s linear infinite} $ .z1{animation-delay:1s} $ .z2{animation-delay:2s}
+      @keyframes mi-z{0%{opacity:0;transform:translate(2px,7px) scale(.75)}15%{opacity:1}70%{opacity:.8}100%{opacity:0;transform:translate(10px,0) scale(1)}}`),
+
   }
-  // The mini for a task's animation. Openers, breaks, exits and long waits have none: the
-  // mark stays the task's own.
+  // The mini for an animation. Openers, breaks and exits have none: they come and go, and the
+  // mark stays on the phase they interrupt.
   const miniFor = anim => MINIS[anim] ?? MINIS.idle
   window.MINIS = MINIS
   window.miniFor = miniFor
