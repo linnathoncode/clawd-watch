@@ -155,6 +155,16 @@
   }
   footer { color: var(--muted); font-size: 13px; }
   .alt-head { display: grid; gap: 8px; }
+  .cat { display: grid; gap: 14px; }
+  .cat h3 { font-family: var(--font-display); font-weight: 400; font-size: 15px; margin: 14px 0 0; }
+  .tbl { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .cat table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .cat th, .cat td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--line); }
+  .cat thead th { border-top: 0; font-family: var(--font-mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .cat td:first-child { font-variant-numeric: tabular-nums; min-width: 9ch; }
+  .cat code { font-family: var(--font-mono); font-size: 12.5px; }
+  .cat .note { margin: 0; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
+
   h2.section { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin: 0; }
 
   body.paused .stage svg * { animation-play-state: paused !important; }
@@ -191,6 +201,89 @@
     <p class="lede">Twenty-five other ways Clawd could fill a phase, so a long wait does not repeat one animation. The tag on each says which phase it could stand in for. None of them is in the plugin yet.</p>
   </section>
   <div class="sheet" id="alts" aria-label="Alternative animations"></div>
+
+  <section class="alt-head" id="switches">
+    <h2 class="section">State switches</h2>
+    <p class="lede">Every switch clawd-watch makes in the current version (0.13.0), from when the band shows up to which frame Clawd moves to next. Times count from the moment Claude went quiet (the start of the quiet stretch). Clawd checks once a second, so a timed switch lands up to a second late.</p>
+  </section>
+
+  <div class="cat">
+    <h3>1. The band: shown or hidden</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>From</th><th>To</th><th>When</th></tr></thead>
+      <tbody>
+        <tr><td>Hidden</td><td>Shown</td><td>A turn of Claude's ends, at least one background task is still tracked, and Claude stays quiet for 600 ms (a turn that starts inside that window cancels it).</td></tr>
+        <tr><td>Shown</td><td>Hidden</td><td>Claude starts a turn: the person's prompt, a task notice, or a queued message. Clawd holds its frame while hidden.</td></tr>
+        <tr><td>Shown</td><td>Hidden</td><td>The last tracked task ends (its notice arrives, TaskStop, the agent list shows it ended, it is older than 2 hours) or <code>/clawd-reset</code> runs.</td></tr>
+        <tr><td>Shown</td><td>Hidden</td><td>A survey takes the band, or the app reports Claude is working.</td></tr>
+        <tr><td>Full card</td><td>Slim line</td><td>The person presses <code>︾</code>. <code>︽</code> switches back. The choice is kept for new sessions.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>2. The quiet stretch: started, carried on, restarted</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Situation when the band shows</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>No stretch under way</td><td>A new one starts: <b>wave</b> straight away, or <b>hop</b> if a task ended during the turn before. Timers start at 0.</td></tr>
+        <tr><td>A stretch is under way, no task ended</td><td>It carries on: no new opener, timers keep running (a task notice that wakes Claude does not restart the wait).</td></tr>
+        <tr><td>A stretch is under way, a task ended</td><td>It restarts with a <b>hop</b>, reached through the current animation's exit, and the timers go back to 0.</td></tr>
+        <tr><td>The person types a prompt</td><td>The stretch is cleared, so the next quiet moment opens fresh with a wave.</td></tr>
+        <tr><td>No tasks left, or <code>/clawd-reset</code></td><td>The stretch is cleared.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>3. Which animation: the timeline of one wait</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Time</th><th>Animation</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0 – 2.5 s</td><td>Wave, or hop</td><td>The opener (see table 2).</td></tr>
+        <tr><td>2.5 s</td><td>The task's animation</td><td>Chosen from the task the band shows (table 4).</td></tr>
+        <tr><td>30 – 34 s, 60 – 64 s</td><td>Stretch</td><td>Break, for writing only. The laptop stays, so there is no exit in or out.</td></tr>
+        <tr><td>30 – 38 s, 60 – 68 s</td><td>Idle (head scratch)</td><td>Break, for listening, thinking and searching. Servers-only waits are idle already and take no break.</td></tr>
+        <tr><td>90 s</td><td>Doom scrolling</td><td>For any task.</td></tr>
+        <tr><td>3 min</td><td>Sleeping</td><td>Until the wait ends or restarts.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4. Which task, and its animation</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Task the band shows</th><th>Animation</th></tr></thead>
+      <tbody>
+        <tr><td>Any task whose description or command reads like a search (<code>rg</code>, <code>grep</code>, <code>find</code>, "search", "look for", "explore", "scan")</td><td>Searching</td></tr>
+        <tr><td>Background agent whose description reads like writing ("write", "implement", "fix", "refactor", "add", "update", "draft"…)</td><td>Writing</td></tr>
+        <tr><td>Any other background agent</td><td>Thinking</td></tr>
+        <tr><td>Command that tests, builds, installs, lints or deploys</td><td>Thinking</td></tr>
+        <tr><td>Any other command, or a Monitor</td><td>Listening</td></tr>
+        <tr><td>Only servers or watchers left (<code>npm run dev</code>, <code>vite</code>, <code>docker compose up</code>, <code>tail -f</code>…, or any command past 10 minutes)</td><td>Idle, text says "Running in background"</td></tr>
+      </tbody>
+    </table>
+    <p class="note">The task shown is the newest one Claude waits on, or the one picked with ‹ ›. It changes, and so can the animation at the next tick, when a task starts or ends (which also drops the ‹ › pick), when the person steps with ‹ ›, or when a command passes 10 minutes and turns into a background one.</p></div>
+
+    <h3>5. How one animation hands over to the next</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Switch</th><th>Frames played</th></tr></thead>
+      <tbody>
+        <tr><td>Any A to a different B</td><td>A's exit (props leave, Clawd eases back to standing), then B with its entrance (a squash while its props pop in). B starts 50 ms after the exit ends.</td></tr>
+        <tr><td>Writing ↔ stretch</td><td>Straight across, no exit or entrance: the laptop stays put.</td></tr>
+        <tr><td>Exit still playing, target changes again</td><td>The exit finishes, then goes straight to the newest target.</td></tr>
+        <tr><td>Target equals what is playing</td><td>Nothing changes; the loop is not restarted.</td></tr>
+        <tr><td>A new stretch with no stretch before it</td><td>The opener appears at once, with no exit.</td></tr>
+      </tbody>
+    </table>
+    <p class="note">Exit lengths: idle, wave and hop 450 ms; listening, thinking, writing, stretch, searching and scrolling 500 ms; sleeping 700 ms (Clawd wakes up first). On the desktop app the old frame stays underneath the new one for 200 ms so the switch never flashes blank.</p></div>
+
+    <h3>6. The slim line's mark</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Time</th><th>Mark</th></tr></thead>
+      <tbody>
+        <tr><td>0 – 90 s</td><td>The task's own: equaliser (listening), three dots (thinking), lines being written (writing), sweeping ring (searching), slow pulse (servers only)</td></tr>
+        <tr><td>90 s</td><td>A phone scrolling</td></tr>
+        <tr><td>3 min</td><td>Drifting z's</td></tr>
+      </tbody>
+    </table>
+    <p class="note">The opener, breaks and exits never show in the slim line: the mark stays on the phase they interrupt. It also changes when the task shown changes. In the terminal, the band is one line of text instead (<code>[o_o] Waiting on …</code>) and shows no animation at all.</p></div>
+  </div>
+
 
   <footer>Fan-made sprite drawn for clawd-watch: a 14 × 8 pixel body in a 32 × 22 frame, built from nested parts (body, arms, legs, eyes, shadow) that each move on their own. Animations use CSS keyframes inside each SVG, so they keep running wherever the SVG is shown.</footer>
 </div>
